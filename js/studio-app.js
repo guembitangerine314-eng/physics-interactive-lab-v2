@@ -31,7 +31,8 @@ import { renderSyllabus } from "./syllabus.js";
 import { experimentLink } from "./integration.js";
 import { TOPICS, LEVELS, levelByKey, levelTopics, topicBySlug, topicExperiments, topicExtensions, enrichmentExperiments, topicNeighbours, adjacentTopics, labTopic, topicOf, searchExperiments } from "./topic-map.js";
 import { createBackdrop } from "./field-backdrop.js";
-import { hasHandles, handlesFor, handleAt, snapToControl, drawHandles } from "./direct-handles.js";
+import { hasHandles, opensInDiagram, handlesFor, handleAt, snapToControl, drawHandles } from "./direct-handles.js";
+import { installApparatus } from "./apparatus-tools.js";
 import {
   createOrbit,
   stepOrbit,
@@ -471,8 +472,8 @@ function labPage(type, query) {
     graphDirty: true,
     view: ["2d", "3d"].includes(query.get("view"))
       ? query.get("view")
-      : hasHandles(type)
-        ? "2d" // hands-on diagrams open ready to drag; 3D stays one click away
+      : opensInDiagram(type)
+        ? "2d" // flat and hands-on experiments open in the diagram; 3D stays one click away
         : d.curriculum
           ? "3d"
           : stored("physics-view", "3d"),
@@ -515,6 +516,18 @@ function labPage(type, query) {
     $("#vectors").closest("label").hidden = true;
   bindControls();
   bindHandles();
+  apparatus?.dispose();
+  apparatus = embedded ? null : installApparatus({
+    stage: $("#stage"),
+    surface: $("#scene-3d").parentElement,
+    record: () => $("#record")?.click(),
+    pause: () => {
+      if (!lab) return;
+      lab.running = false;
+      lab.userPaused = true;
+      syncPlay();
+    },
+  });
   $(".lab-page").dataset.model = type;
   const mappedLessons = relatedLessons(type);
   if (mappedLessons.length)
@@ -754,6 +767,7 @@ function applyParams(next) {
 }
 /** Grab-and-drag on the 2D diagram: the same parameters as the sliders. */
 let handleState = { active: null, hover: null, used: false };
+let apparatus = null;
 function bindHandles() {
   const canvas = $("#simulation"), boundLab = lab;
   handleState = { active: null, hover: null, used: false, moved: false, suppressClick: false };
@@ -1885,6 +1899,8 @@ function route() {
   buoyancyUpdate = null;
   learningStudio = null;
   presentationStudio = null;
+  apparatus?.dispose();
+  apparatus = null;
   routeToken++;
   viewToken++;
   view?.dispose();
@@ -1991,7 +2007,8 @@ function frame(now) {
         lab.running = false;
         syncPlay();
       }
-    } else if (lab.running && !document.hidden) {
+    } else if (lab.running && !document.hidden && !handleState.active) {
+      // A part in the hand stays where it is held; the model moves on at release.
       const rate = lab.definition.rateFor?.(lab.params) ?? lab.definition.rate;
       lab.accumulator += dt * lab.speed * rate;
       const h = integrationStep();
@@ -2023,6 +2040,7 @@ function frame(now) {
       }
     }
     presentationStudio?.render?.(displayLab);
+    apparatus?.tick(lab);
     if (now - lab.lastUI > 125) {
       updateReadouts();
       if (selectedGraph().spatial === "wave") lab.graphDirty = true;

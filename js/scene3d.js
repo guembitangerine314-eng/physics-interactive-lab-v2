@@ -1,4 +1,5 @@
 import { createBudget } from "./render-budget.js";
+import { realMaterial, benchTexture, benchFade } from "./scene-materials.js";
 import { apparatusBounds, frameApparatus, frameOrbit, diagramLabelVisible } from './scene-framing.js';
 import { sceneLabelAllowed } from './study-policy.js';
 import { wavelengthRGB } from './diagram-theme.js';
@@ -31,13 +32,7 @@ const CYAN = 0x63efda,
   GOLD = 0xffc778,
   BLUE = 0x7baeff;
 function material(color, extra = {}) {
-  return new T.MeshStandardMaterial({
-    color,
-    roughness: 0.4,
-    metalness: 0.22,
-    envMapIntensity: 0.6,
-    ...extra,
-  });
+  return realMaterial(color, extra);
 }
 function sphere(r, color) {
   const m = new T.Mesh(new T.SphereGeometry(r, 32, 20), material(color));
@@ -210,9 +205,20 @@ export class SceneView {
     this.bindCamera();
   }
   addEnvironment() {
+    // An oak bench top under every apparatus. It fades out in a soft circle,
+    // so there is no table edge or horizon line cutting across the model.
     const floor = new T.Mesh(
-      new T.PlaneGeometry(200, 200),
-      new T.ShadowMaterial({ color: 0x020b15, opacity: 0.42, depthWrite: false }),
+      new T.CircleGeometry(30, 72),
+      new T.MeshStandardMaterial({
+        color: 0x86705c,
+        map: benchTexture(),
+        alphaMap: benchFade(),
+        transparent: true,
+        depthWrite: false,
+        roughness: 0.5,
+        metalness: 0,
+        envMapIntensity: 0.55,
+      }),
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.82;
@@ -224,7 +230,7 @@ export class SceneView {
     const grid = studioGrid();
     grid.position.y = -0.8;
     grid.material.transparent = true;
-    grid.material.opacity = 0.23;
+    grid.material.opacity = 0.1;
     this.scene.add(grid);
     this.grid = grid;
     const points = [];

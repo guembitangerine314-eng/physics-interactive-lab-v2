@@ -31,7 +31,25 @@ export function incidenceAngle(x, y, px, py) {
   return Math.atan2(Math.abs(x - px), Math.max(1e-6, y - py)) / DEG;
 }
 
+/** Length the pendulum is drawn with. Normally a fixed 180 units; while the
+ * bob is held it follows the real length so the bob stays under the pointer. */
+export function pendulumDrawLength(lab) {
+  return lab.heldPendulumScale ? clamp(lab.params.length * lab.heldPendulumScale, 50, 245) : 180;
+}
+
 const LABS = {
+  pendulum(lab, w, h) {
+    // Mirrors drawOscillation: a 900 × 520 space (620 wide and shifted on phones).
+    const compact = w < 600, wide = compact ? 620 : 900, scale = Math.min(w / wide, h / 520),
+      px = (w - wide * scale) / 2 + (compact ? 310 : 450) * scale, py = (h - 520 * scale) / 2 + 268 * scale,
+      perMetre = lab.heldPendulumScale ?? 180 / lab.params.length,
+      length = pendulumDrawLength(lab) * scale, theta = lab.state.theta || 0;
+    return [{
+      id: "bob", at: [px + length * Math.sin(theta), py + length * Math.cos(theta)], hint: "Pull the bob: angle and length",
+      cursor: "grab", hold: { heldPendulumScale: perMetre },
+      drag: (x, y) => ({ angle: Math.atan2(x - px, Math.max(1e-6, y - py)) / DEG, length: Math.hypot(x - px, y - py) / scale / perMetre }),
+    }];
+  },
   moments(lab, w, h) {
     const t = diagramTransform(w, h), L = momentsLayout(lab), p = lab.params,
       at = (d) => toCanvas(t, [L.pivot + d * L.sc * Math.cos(L.theta), L.py - d * L.sc * Math.sin(L.theta)]),
@@ -76,6 +94,11 @@ const LABS = {
 };
 
 export const hasHandles = (type) => Object.hasOwn(LABS, type);
+/** Flat experiments whose 3D bench added clutter rather than insight. They
+ * open in the diagram; the 3D view is still one click away. */
+const DIAGRAM_FIRST = new Set(["pendulum", "measurement", "motion", "hooke", "collisions", "waves", "mirror",
+  "dispersion", "spectrum", "dc", "sensors", "devices", "rectifier"]);
+export const opensInDiagram = (type) => hasHandles(type) || DIAGRAM_FIRST.has(type);
 /** Handles for the current state, in CSS pixels of the diagram canvas. */
 export function handlesFor(lab, w, h) {
   return hasHandles(lab.type) ? LABS[lab.type](lab, w, h) : [];

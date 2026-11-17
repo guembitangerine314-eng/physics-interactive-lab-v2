@@ -1,4 +1,5 @@
 /** Reusable 3D apparatus. Display transforms never modify physical state. */
+import { realMaterial } from "./scene-materials.js";
 import * as T from "../vendor/three.module.min.js";
 import { roundedBox } from "./scene-finish.js";
 export const PALETTE = {
@@ -79,14 +80,7 @@ export function createSceneKit(root, { labels = true } = {}) {
     indicators = [],
     objects = [],
     shared = new Map();
-  const material = (color, extra = {}) =>
-    new T.MeshStandardMaterial({
-      color,
-      metalness: 0.16,
-      roughness: 0.4,
-      envMapIntensity: 0.6,
-      ...extra,
-    });
+  const material = (color, extra = {}) => realMaterial(color, extra);
   const add = (mesh, pos = [0, 0, 0], role = "apparatus") => {
     mesh.position.set(...pos);
     mesh.userData.role = role;

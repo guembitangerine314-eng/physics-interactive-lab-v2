@@ -1,5 +1,6 @@
 /** A paper-style scientific diagram. Geometry and arrows read the same SI
  * state as the 3D scene. HTML instruments supply camera-independent readings. */
+import { pendulumDrawLength } from "./direct-handles.js";
 import {
   springReadings,
   pendulumReadings,
@@ -226,7 +227,7 @@ export function drawOscillation(canvas, lab) {
     // The complete ±120° envelope fits below the instrument strip. Both axes
     // and the actual trail use the same physical length-to-pixel scale.
     const pivot = [450, 268],
-      length = 180,
+      length = pendulumDrawLength(lab),
       pt = (a) => [
         pivot[0] + length * Math.sin(a),
         pivot[1] + length * Math.cos(a),

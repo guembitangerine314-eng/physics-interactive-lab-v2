@@ -25,8 +25,8 @@ test("every hands-on lab exists and its handles sit inside the diagram", () => {
       assert.equal(typeof h.drag, "function");
     }
   }
-  assert.equal(hasHandles("pendulum"), false);
-  assert.deepEqual(handlesFor(labFor("pendulum", "igcse"), W, H), []);
+  assert.equal(hasHandles("buoyancy"), false);
+  assert.deepEqual(handlesFor(labFor("buoyancy", "igcse"), W, H), []);
 });
 
 test("dragging a handle to where it already is changes nothing", () => {

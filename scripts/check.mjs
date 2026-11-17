@@ -86,6 +86,8 @@ for (const file of [
   "js/field-backdrop.js",
   "js/render-budget.js",
   "js/direct-handles.js",
+  "js/apparatus-tools.js",
+  "js/scene-materials.js",
   "assets/fonts/Fraunces-variable.woff2",
   "assets/fonts/Fraunces-italic-variable.woff2",
   "assets/fonts/Fraunces-OFL.txt",

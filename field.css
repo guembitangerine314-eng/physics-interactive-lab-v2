@@ -500,3 +500,148 @@ body.field-page main:focus { outline: none; }
   .path-list a,
   .topic-list a { transition: none; }
 }
+
+/* ---------- Stage chrome: tabs and buttons that read at a glance ---------- */
+.lab-page .stage-views button,
+.lab-page .camera-toolbar button,
+.lab-page .running-status,
+.lab-page [role="tab"],
+.lab-page .small-button,
+.lab-page .preset-button { font-family: var(--font-data); }
+.lab-page .stage-views button { font-size: 14.5px; font-weight: 700; letter-spacing: 0.01em; padding-inline: 16px; }
+.lab-page .camera-toolbar button { font-size: 14px; font-weight: 650; padding: 7px 13px; }
+.lab-page .camera-toolbar label { font-size: 14px; font-weight: 600; }
+.lab-page .running-status { font-size: 13.5px; font-weight: 700; letter-spacing: 0.08em; }
+.lab-page [role="tab"] { font-size: 16.5px; font-weight: 700; padding-block: 13px; }
+.lab-page [role="tab"][aria-selected="true"] { color: var(--teal); box-shadow: inset 0 -3px 0 var(--teal); }
+.lab-page .small-button { font-size: 14.5px; font-weight: 650; }
+.lab-page .stage-top summary,
+.lab-page .variables-toggle,
+.lab-page details > summary { font-family: var(--font-data); font-weight: 700; }
+
+/* ---------- Apparatus tray and tools ---------- */
+/* The tray opens over the scene, above any tool already placed there. */
+.lab-page .stage-top { position: relative; z-index: 50; }
+.apparatus-menu { position: relative; z-index: 80; margin-left: 14px; }
+.apparatus-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border: 1px solid #ffd166;
+  border-radius: 999px;
+  font-family: var(--font-data);
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffe6a8;
+  background: rgba(255, 209, 102, 0.14);
+}
+.apparatus-button:hover,
+.apparatus-button[aria-expanded="true"] { background: rgba(255, 209, 102, 0.28); }
+.apparatus-tray {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 0;
+  display: grid;
+  gap: 4px;
+  width: 210px;
+  padding: 8px;
+  border: 1px solid #35566c;
+  border-radius: 14px;
+  background: #0d2434;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+.apparatus-tray[hidden] { display: none; }
+.apparatus-tray button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 9px;
+  font-family: var(--font-data);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  color: #dcecf4;
+  background: transparent;
+}
+.apparatus-tray button:hover { background: #1b3d53; }
+.apparatus-tray button[aria-pressed="true"] { color: #0d2434; background: #ffd166; }
+.apparatus-layer { position: absolute; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+.apparatus-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.apparatus-svg [data-point] { pointer-events: auto; cursor: grab; }
+.apparatus-grid {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255, 209, 102, 0.55) 1px, transparent 1px) 0 0 / 100px 100px,
+    linear-gradient(90deg, rgba(255, 209, 102, 0.55) 1px, transparent 1px) 0 0 / 100px 100px,
+    linear-gradient(rgba(255, 209, 102, 0.22) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(90deg, rgba(255, 209, 102, 0.22) 1px, transparent 1px) 0 0 / 20px 20px;
+}
+.apparatus-widget {
+  position: absolute;
+  width: 196px;
+  pointer-events: auto;
+  border: 1px solid #3d6079;
+  border-radius: 14px;
+  color: #e8f1f6;
+  background: rgba(10, 30, 44, 0.95);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-data);
+}
+.apparatus-widget header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 13px;
+  border-bottom: 1px solid #27465a;
+  cursor: grab;
+  user-select: none;
+}
+.apparatus-widget header strong { font-size: 13.5px; font-weight: 700; letter-spacing: 0.04em; color: #ffd166; }
+.apparatus-widget header button { width: 26px; height: 26px; border: 0; border-radius: 7px; font-size: 18px; line-height: 1; color: #b9d0dd; background: transparent; }
+.apparatus-widget header button:hover { background: #1b3d53; color: #fff; }
+.apparatus-time,
+.apparatus-reading,
+.apparatus-answer { display: block; padding: 10px 13px 2px; font-size: 32px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.apparatus-reading { font-size: 19px; padding-bottom: 6px; }
+.apparatus-answer { font-size: 22px; overflow-wrap: anywhere; }
+.apparatus-answer.is-error { font-size: 15px; color: #ffb4a3; }
+.apparatus-note { margin: 0; padding: 0 13px 8px; font-size: 11.5px; line-height: 1.4; color: #9db6c4; }
+.apparatus-row { display: flex; gap: 6px; padding: 6px 10px 10px; }
+.apparatus-row button,
+.apparatus-keys button {
+  flex: 1;
+  padding: 8px 6px;
+  border: 1px solid #35566c;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: #e8f1f6;
+  background: #14324a;
+}
+.apparatus-row button:hover,
+.apparatus-keys button:hover { background: #1e4a66; }
+.apparatus-row button.primary { color: #0d2434; border-color: #7ef0e2; background: #7ef0e2; }
+.apparatus-laps { margin: 0; padding: 0 13px 6px; list-style: none; font-size: 13px; font-variant-numeric: tabular-nums; }
+.apparatus-laps li { display: flex; justify-content: space-between; padding: 3px 0; border-top: 1px solid #1f3c50; }
+.apparatus-laps span { color: #9db6c4; }
+.apparatus-field,
+.apparatus-check { display: block; padding: 4px 13px; font-size: 12.5px; color: #c4d8e3; }
+.apparatus-field input { width: 62px; padding: 5px 6px; border: 1px solid #35566c; border-radius: 7px; font: inherit; color: #fff; background: #0a1e2c; }
+.apparatus-field input[type="text"] { width: 40px; }
+.apparatus-expression { width: calc(100% - 20px); margin: 10px 10px 0; padding: 8px 10px; border: 1px solid #35566c; border-radius: 9px; font: inherit; font-size: 15px; color: #fff; background: #0a1e2c; }
+.apparatus-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px 10px 0; }
+.apparatus-keys button { padding: 7px 0; }
+.apparatus-calculator { width: 236px; }
+.apparatus-timer.is-done .apparatus-time { color: #ffd166; }
+.is-embedded .apparatus-menu,
+.is-embedded .apparatus-layer { display: none; }
+@media (max-width: 700px) {
+  .apparatus-menu { margin-left: 8px; }
+  .apparatus-button { padding: 7px 11px; font-size: 13px; }
+}
