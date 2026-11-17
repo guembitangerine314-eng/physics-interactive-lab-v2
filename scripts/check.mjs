@@ -89,6 +89,7 @@ for (const file of [
   "js/apparatus-tools.js",
   "js/level-wording.js",
   "js/scene-look.js",
+  "js/scene-props.js",
   "js/lesson-view.js",
   "js/scene-materials.js",
   "assets/fonts/Fraunces-variable.woff2",
