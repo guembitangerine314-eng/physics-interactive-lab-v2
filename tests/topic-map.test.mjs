@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import { SIMULATIONS } from "../js/simulations.js";
 import { availableModes } from "../js/learning-paths.js";
 import {
-  TOPICS, compareRefs, topicOf, topicExperiments, topicExtensions,
+  TOPICS, ALL_TOPICS, LEVELS, IGCSE_YEARS, levelTopics, adjacentTopics, labTopic,
+  enrichmentExperiments, compareRefs, topicOf, topicExperiments, topicExtensions,
   topicNeighbours, searchExperiments, topicBySlug,
 } from "../js/topic-map.js";
+import { getProfile } from "../js/learning-paths.js";
 import { bounce, seeded, sceneFrame, dipoleLine } from "../js/field-backdrop.js";
 
 test("there are six IGCSE topics with routable slugs and six-digit accents", () => {
@@ -94,4 +96,46 @@ test("a dipole field line leaves the positive charge and ends at the negative on
   // A line that starts by heading away from the negative charge runs out of reach instead.
   const away = dipoleLine(Math.PI).at(-1);
   assert.ok(Math.hypot(away[0], away[1]) > 3.5);
+});
+
+test("IGCSE splits into Year 10 and Year 11 with every topic in exactly one year", () => {
+  assert.deepEqual(IGCSE_YEARS.map((y) => y.label), ["Year 10", "Year 11"]);
+  assert.deepEqual(IGCSE_YEARS.flatMap((y) => y.topics).sort(), [1, 2, 3, 4, 5, 6]);
+  TOPICS.forEach((t) => assert.ok(IGCSE_YEARS.find((y) => y.label === t.group).topics.includes(t.number)));
+});
+
+test("AS Level is topics 1 to 11 and A Level is topics 12 to 25, with unique routes", () => {
+  assert.deepEqual(LEVELS.map((l) => l.key), ["igcse", "as", "a2"]);
+  assert.deepEqual(levelTopics("as").map((t) => t.number), Array.from({ length: 11 }, (_, i) => i + 1));
+  assert.deepEqual(levelTopics("a2").map((t) => t.number), Array.from({ length: 14 }, (_, i) => i + 12));
+  assert.equal(new Set(ALL_TOPICS.map((t) => t.slug)).size, ALL_TOPICS.length);
+  for (const t of ALL_TOPICS) {
+    assert.ok(t.name && !t.name.includes("&"));
+    assert.ok(t.sceneIndex >= 0 && t.sceneIndex < 6);
+    assert.ok(!Object.hasOwn(SIMULATIONS, t.slug));
+  }
+});
+
+test("every AS / A Level model is listed under each topic it references, in order", () => {
+  const alevel = Object.keys(SIMULATIONS).filter((id) => availableModes(id).includes("alevel"));
+  for (const id of alevel)
+    for (const ref of getProfile(id, "alevel").refs) {
+      const topic = ALL_TOPICS.find((t) => t.mode === "alevel" && t.number === Number(ref.split(".")[0]));
+      assert.ok(topicExperiments(topic).some((e) => e.id === id), `${id} missing from topic ${topic.number}`);
+    }
+  for (const t of [...levelTopics("as"), ...levelTopics("a2")]) {
+    const list = topicExperiments(t);
+    list.forEach((e, i) => i && assert.ok(compareRefs(list[i - 1].refs[0], e.refs[0]) <= 0));
+  }
+});
+
+test("lab trails resolve per study mode and topics step inside their level", () => {
+  assert.equal(labTopic("pendulum", "igcse").slug, "topic-1");
+  assert.equal(labTopic("pendulum", "alevel").slug, "a2-topic-17");
+  assert.equal(labTopic("binary", "enrichment"), null);
+  assert.ok(topicNeighbours("gravity", "alevel").index >= 0);
+  assert.equal(adjacentTopics(levelTopics("as")[0]).previous, null);
+  assert.equal(adjacentTopics(levelTopics("as").at(-1)).next, null);
+  assert.equal(adjacentTopics(TOPICS[2]).next, TOPICS[3]);
+  assert.deepEqual(enrichmentExperiments().map((e) => e.id).sort(), ["binary", "doublependulum", "threebody"]);
 });

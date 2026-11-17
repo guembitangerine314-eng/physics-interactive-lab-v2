@@ -29,7 +29,7 @@ import {
 } from "./learning-paths.js";
 import { renderSyllabus } from "./syllabus.js";
 import { experimentLink } from "./integration.js";
-import { TOPICS, topicBySlug, topicExperiments, topicExtensions, topicNeighbours, topicOf, searchExperiments } from "./topic-map.js";
+import { TOPICS, LEVELS, levelByKey, levelTopics, topicBySlug, topicExperiments, topicExtensions, enrichmentExperiments, topicNeighbours, adjacentTopics, labTopic, topicOf, searchExperiments } from "./topic-map.js";
 import { createBackdrop } from "./field-backdrop.js";
 import {
   createOrbit,
@@ -180,49 +180,34 @@ function card(id, preferredMode) {
 }
 const backdrop = createBackdrop($("#backdrop"), TOPICS);
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-/** Start screen: a headline, a search box and the six IGCSE areas. Nothing else. */
+/** Start screen: a headline, a search box and three ways in. Nothing else. */
 function home() {
   $("#main").innerHTML = `<section class="field-home">
     <div class="field-intro">
       <h1>Physics,<br><em>made visible.</em></h1>
-      <p>Pick a topic, open an experiment, change one thing and watch what happens.</p>
+      <p>Pick your course, open an experiment, change one thing and watch what happens.</p>
       <div class="field-search">
         <input type="search" id="search" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" aria-label="Find an experiment" autocomplete="off" spellcheck="false" placeholder="Find an experiment, such as pendulum or lenses">
         <ul id="search-results" role="listbox" aria-label="Matching experiments" hidden></ul>
       </div>
+      <nav class="level-entry" aria-label="Choose your course">${LEVELS.map((l) => {
+        const list = levelTopics(l.key);
+        return `<a href="#/syllabus?track=${l.key}"><strong>${l.name}</strong><span>${l.key === "igcse" ? l.groups.map((g) => g.label).join(" and ") : `Topics ${list[0].number} to ${list.at(-1).number}`}</span></a>`;
+      }).join("")}</nav>
     </div>
-    <p class="field-caption" aria-hidden="true"><span id="caption-topic"></span><strong id="caption-scene"></strong></p>
-    <nav class="topic-rail" aria-label="IGCSE topics in syllabus order">${TOPICS.map((t) => `<a href="#/${t.slug}" data-topic="${t.number}" style="--accent:${t.accent}"><span class="topic-number" aria-hidden="true">${t.number}</span><span class="topic-name">${t.name}</span><span class="topic-count">${plural(topicExperiments(t.number).length, "experiment")}</span></a>`).join("")}</nav>
-    <p class="field-more"><a href="#/library">All ${LAB_COUNT} experiments</a><a href="#/course">IGCSE lesson map</a><a href="#/syllabus">Learning paths</a><a href="#/textbook">A Level practice</a><a href="#/olympiad">Olympiad</a></p>
+    <p class="field-caption" aria-hidden="true"><strong id="caption-scene"></strong></p>
+    <p class="field-more"><a href="#/library">All ${LAB_COUNT} experiments</a><a href="#/course">IGCSE lesson map</a><a href="#/textbook">A Level practice</a><a href="#/olympiad">Olympiad</a></p>
   </section>`;
-  const rail = $(".topic-rail"), input = $("#search"), results = $("#search-results");
-  backdrop.onChange((index) => {
-    const t = TOPICS[index];
-    if (!$("#caption-topic")) return;
-    $("#caption-topic").textContent = `Topic ${t.number}`;
-    $("#caption-scene").textContent = t.scene;
-    $(".field-caption").style.setProperty("--accent", t.accent);
-    $$("a", rail).forEach((a, i) => a.classList.toggle("is-live", i === index));
-  });
+  const input = $("#search"), results = $("#search-results");
+  const caption = (index) => {
+    if (!$("#caption-scene")) return;
+    $("#caption-scene").textContent = TOPICS[index].scene;
+    $(".field-caption").style.setProperty("--accent", TOPICS[index].accent);
+  };
+  backdrop.onChange(caption);
   backdrop.show(backdrop.current, { instant: true });
-  $("#caption-topic").textContent = `Topic ${TOPICS[backdrop.current].number}`;
-  $("#caption-scene").textContent = TOPICS[backdrop.current].scene;
-  $(".field-caption").style.setProperty("--accent", TOPICS[backdrop.current].accent);
-  $$("a", rail)[backdrop.current].classList.add("is-live");
+  caption(backdrop.current);
   backdrop.cycle(true);
-  // Pointing at or tabbing to a topic previews its scene; leaving resumes the tour.
-  $$("a", rail).forEach((a, i) => {
-    const pin = () => {
-      backdrop.cycle(false);
-      backdrop.show(i);
-    };
-    a.addEventListener("pointerenter", pin);
-    a.addEventListener("focus", pin);
-  });
-  rail.addEventListener("pointerleave", () => backdrop.cycle(true));
-  rail.addEventListener("focusout", (e) => {
-    if (!rail.contains(e.relatedTarget)) backdrop.cycle(true);
-  });
   let active = -1;
   const close = () => {
     results.hidden = true;
@@ -239,7 +224,7 @@ function home() {
     const q = input.value.trim(), found = searchExperiments(q);
     if (!q) return close();
     results.innerHTML = found.length
-      ? found.map((e, i) => `<li role="option" id="search-option-${i}" aria-selected="false"><a tabindex="-1" href="#/${e.id}${e.igcse ? "?level=igcse" : ""}"><strong>${esc(e.title)}</strong><span>${e.igcse ? `Topic ${e.topic}` : "A Level and beyond"}</span></a></li>`).join("")
+      ? found.map((e, i) => `<li role="option" id="search-option-${i}" aria-selected="false"><a tabindex="-1" href="#/${e.id}${e.igcse ? "?level=igcse" : ""}"><strong>${esc(e.title)}</strong><span>${e.igcse ? `IGCSE Topic ${e.topic}` : "A Level and beyond"}</span></a></li>`).join("")
       : `<li class="search-empty">No experiment matches “${esc(q)}”. Try waves, light or motion.</li>`;
     results.hidden = false;
     input.setAttribute("aria-expanded", "true");
@@ -260,30 +245,66 @@ function home() {
   };
   input.onblur = () => setTimeout(() => !results.contains(document.activeElement) && close(), 150);
 }
-/** One IGCSE area: every experiment in syllabus order, one click from the start screen. */
+/** Learning paths: pick a level, then a topic. Every level uses the same
+ * "Topic N" rows; IGCSE is split into its two school years. */
+function pathsPage(query) {
+  const asked = query.get("track"),
+    track = asked === "alevel" ? "as" : ["igcse", "as", "a2", "enrichment"].includes(asked) ? asked : "igcse",
+    level = levelByKey(track);
+  const row = (t) => {
+    const count = topicExperiments(t).length,
+      inner = `<span class="path-topic">Topic ${t.number}</span><span class="path-name">${esc(t.name)}</span><span class="path-count">${count ? plural(count, "experiment") : "None yet"}</span>`;
+    return count
+      ? `<li><a href="#/${t.slug}" data-scene="${t.sceneIndex}" style="--accent:${t.accent}">${inner}</a></li>`
+      : `<li><span class="path-empty">${inner}</span></li>`;
+  };
+  backdrop.onChange(null);
+  backdrop.cycle(true);
+  backdrop.show(backdrop.current, { instant: true });
+  $("#main").innerHTML = `<section class="field-paths">
+    <header class="paths-heading"><h1>Choose your topic.</h1><p>${level ? `${level.course}. Topics are in syllabus order.` : "Models that go beyond the syllabus."}</p></header>
+    <nav class="level-switch" aria-label="Course level">${[...LEVELS.map((l) => [l.key, l.name]), ["enrichment", "Enrichment"]].map(([key, name]) => `<a href="#/syllabus?track=${key}"${key === track ? ' aria-current="page"' : ""}>${name}</a>`).join("")}</nav>
+    ${level
+      ? `<div class="path-groups${level.groups.length > 1 ? " is-split" : ""}">${level.groups.map((g) => `<section class="path-group">${g.label ? `<h2>${g.label}</h2>` : ""}<ol class="path-list">${levelTopics(track).filter((t) => g.topics.includes(t.number)).map(row).join("")}</ol></section>`).join("")}</div>`
+      : `<div class="path-groups"><section class="path-group"><ol class="path-list">${enrichmentExperiments().map((e) => `<li><a href="#/${e.id}"><span class="path-topic">Extra</span><span class="path-name">${esc(e.title)}</span><span class="path-count">Open</span></a></li>`).join("")}</ol></section></div>`}
+    <p class="field-more"><a href="#/coverage?track=${track === "enrichment" ? "enrichment" : track}">Syllabus coverage and official references</a><a href="#/library">All ${LAB_COUNT} experiments</a>${track === "igcse" ? '<a href="#/course">IGCSE lesson map</a>' : '<a href="#/textbook">A Level practice</a>'}</p>
+  </section>`;
+  // Pointing at a topic previews its scene behind the list.
+  $$(".path-list a[data-scene]").forEach((a) => {
+    const pin = () => {
+      backdrop.cycle(false);
+      backdrop.show(Number(a.dataset.scene));
+    };
+    a.addEventListener("pointerenter", pin);
+    a.addEventListener("focus", pin);
+  });
+}
+/** One topic of one level: every experiment in syllabus order. */
 function topicPage(topic) {
-  const list = topicExperiments(topic.number), more = topicExtensions(topic.number);
+  const list = topicExperiments(topic), more = topicExtensions(topic),
+    level = levelByKey(topic.level), { previous, next } = adjacentTopics(topic),
+    sep = '<i aria-hidden="true">›</i>',
+    step = (t, label) => t ? `<a href="#/${t.slug}" title="${esc(t.name)}">${label}</a>` : "";
   backdrop.onChange(null);
   backdrop.cycle(false);
-  backdrop.show(topic.number - 1);
+  backdrop.show(topic.sceneIndex);
   $("#main").innerHTML = `<section class="field-topic" style="--accent:${topic.accent}">
-    <nav class="topic-tabs" aria-label="IGCSE topics"><a class="topic-tabs-home" href="#/">All topics</a>${TOPICS.map((t) => `<a href="#/${t.slug}" style="--accent:${t.accent}"${t === topic ? ' aria-current="page"' : ""}><b>${t.number}</b>${t.short}</a>`).join("")}</nav>
-    <header class="topic-heading"><span class="topic-number" aria-hidden="true">${topic.number}</span><div><h1>${topic.name}</h1><p>${plural(list.length, "experiment")} in syllabus order, for Cambridge IGCSE Physics 0625.</p></div></header>
-    <ol class="topic-list">${list.map((e) => `<li><a href="#/${e.id}?level=igcse"><span class="topic-thumb">${thumbnail(e.id)}</span><span class="topic-item-copy"><strong>${esc(e.title)}</strong><span>${esc(e.goals.slice(0, 2).join(". "))}.</span></span><span class="topic-ref" title="Syllabus section ${e.refs[0]}">${e.refs[0]}</span></a></li>`).join("")}</ol>
+    <nav class="topic-trail" aria-label="Where you are"><span class="topic-trail-path"><a href="#/syllabus?track=${topic.level}">${level.name}</a>${sep}${topic.group ? `<span>${topic.group}</span>${sep}` : ""}<span>Topic ${topic.number}</span></span><span class="topic-trail-step">${step(previous, `Topic ${previous?.number}`)}${step(next, `Topic ${next?.number}`)}</span></nav>
+    <header class="topic-heading"><p class="topic-label">Topic ${topic.number}</p><h1>${esc(topic.name)}</h1><p>${list.length ? `${plural(list.length, "experiment")} in syllabus order, for ${level.course}.` : "No experiments for this topic yet."}</p></header>
+    <ol class="topic-list">${list.map((e) => `<li><a href="#/${e.id}?level=${topic.mode}"><span class="topic-thumb">${thumbnail(e.id)}</span><span class="topic-item-copy"><strong>${esc(e.title)}</strong><span>${esc(e.goals.slice(0, 2).join(". "))}.</span></span><span class="topic-ref" title="Syllabus section ${e.refs[0]}">${e.refs[0]}</span></a></li>`).join("")}</ol>
     ${more.length ? `<section class="topic-further"><h2>Go further</h2><p>A Level and enrichment models built on the same ideas.</p><div>${more.map((e) => `<a href="#/${e.id}">${esc(e.title)}<span>${e.level}</span></a>`).join("")}</div></section>` : ""}
   </section>`;
 }
-/** Where the reader is, with previous and next inside the same IGCSE area. */
+/** Where the reader is, with previous and next inside the same topic. */
 function labTrail(type, mode) {
-  const d = SIMULATIONS[type], n = topicNeighbours(type),
-    topic = TOPICS[(topicOf(type) ?? 0) - 1],
+  const d = SIMULATIONS[type], n = topicNeighbours(type, mode), topic = n.topic,
     here = esc(studyTitle(type, mode, d.short)), sep = '<i aria-hidden="true">›</i>';
-  if (mode !== "igcse" || !topic || n.index < 0)
-    return `<nav class="lab-trail" aria-label="Where you are"><span class="lab-trail-path"><a href="#/">Topics</a>${sep}<a href="#/library">All experiments</a>${sep}${topic ? `<a href="#/${topic.slug}">${topic.name}</a>${sep}` : ""}<span>${here}</span></span></nav>`;
+  if (!topic || n.index < 0)
+    return `<nav class="lab-trail" aria-label="Where you are"><span class="lab-trail-path"><a href="#/syllabus?track=enrichment">Enrichment</a>${sep}<span>${here}</span></span></nav>`;
   const step = (e, label, name) =>
-    e ? `<a class="${name}" href="#/${e.id}?level=igcse" title="${esc(e.title)}">${label}</a>`
+    e ? `<a class="${name}" href="#/${e.id}?level=${mode}" title="${esc(e.title)}">${label}</a>`
       : `<span class="${name}" aria-disabled="true">${label}</span>`;
-  return `<nav class="lab-trail" style="--accent:${topic.accent}" aria-label="Where you are"><span class="lab-trail-path"><a href="#/">Topics</a>${sep}<a href="#/${topic.slug}">${topic.number} ${topic.name}</a>${sep}<span>${here}</span></span><span class="lab-trail-step">${step(n.previous, "Previous", "previous")}<span>${n.index + 1} of ${n.total}</span>${step(n.next, "Next", "next")}</span></nav>`;
+  return `<nav class="lab-trail" style="--accent:${topic.accent}" aria-label="Where you are"><span class="lab-trail-path"><a href="#/syllabus?track=${topic.level}">${levelByKey(topic.level).name}</a>${sep}<a href="#/${topic.slug}">Topic ${topic.number}: ${esc(topic.name)}</a>${sep}<span>${here}</span></span><span class="lab-trail-step">${step(n.previous, "Previous", "previous")}<span>${n.index + 1} of ${n.total}</span>${step(n.next, "Next", "next")}</span></nav>`;
 }
 function library() {
   $("#main").innerHTML =
@@ -470,7 +491,7 @@ function labPage(type, query) {
       .filter(([id, v]) => id !== type && v.category === d.category)
       .slice(0, 2)
       .map(([id, v]) => `<a href="#/${id}">${v.short} ${icon("arrow")}</a>`)
-      .join("")}${topicOf(type) ? `<a href="#/${TOPICS[topicOf(type) - 1].slug}">Back to ${TOPICS[topicOf(type) - 1].name} ${icon("arrow")}</a>` : ""}<a href="#/library">All experiments ${icon("arrow")}</a></div></div>`;
+      .join("")}${labTopic(type, studyMode) ? `<a href="#/${labTopic(type, studyMode).slug}">Back to Topic ${labTopic(type, studyMode).number} ${icon("arrow")}</a>` : ""}<a href="#/library">All experiments ${icon("arrow")}</a></div></div>`;
   $(".lab-page").insertAdjacentHTML("afterbegin", labTrail(type, studyMode));
   if (
     !d.curriculum &&
@@ -1793,7 +1814,7 @@ function route() {
   $$("[data-nav]").forEach((a) => {
     const active =
       a.dataset.nav ===
-      (id === "course" || id === "syllabus"
+      (id === "course" || id === "syllabus" || id === "coverage" || topicBySlug(id)
         ? "course"
         : id === "olympiad"
           ? "olympiad"
@@ -1808,7 +1829,10 @@ function route() {
   });
   if (type) labPage(type, params);
   else if (id === "syllabus") {
-    document.title = "Cambridge learning paths · Physics Interactive Lab";
+    document.title = "Learning paths · Physics Interactive Lab";
+    pathsPage(new URLSearchParams(query));
+  } else if (id === "coverage") {
+    document.title = "Syllabus coverage · Physics Interactive Lab";
     renderSyllabus($("#main"), new URLSearchParams(query));
   } else if (id === "course") {
     document.title = "IGCSE course map · Physics Interactive Lab";
@@ -1818,12 +1842,13 @@ function route() {
     document.title = `${olympiad ? "Physics Olympiad" : "A Level"} practice · Physics Interactive Lab`;
     renderTextbookLibrary($("#main"), olympiad, new URLSearchParams(query));
   } else if (topicBySlug(id)) {
-    document.title = `${topicBySlug(id).name} · Physics Interactive Lab`;
-    topicPage(topicBySlug(id));
+    const topic = topicBySlug(id);
+    document.title = `Topic ${topic.number}: ${topic.name} · Physics Interactive Lab`;
+    topicPage(topic);
   } else if (id === "library" || id === "simulations") library();
   else home();
-  // The living backdrop belongs to the start screen and the topic pages only.
-  const field = !type && !embedded && (id === "" || id === undefined || Boolean(topicBySlug(id)));
+  // The living backdrop belongs to the start screen, learning paths and topic pages.
+  const field = !type && !embedded && (!id || id === "syllabus" || Boolean(topicBySlug(id)));
   document.body.classList.toggle("field-page", field);
   if (field) backdrop.start();
   else backdrop.stop();
@@ -1903,7 +1928,7 @@ $("#lab-select").innerHTML =
   '<option value="">Jump to an experiment</option>' +
   TOPICS.map(
     (t) =>
-      `<optgroup label="${t.number} ${t.name}">${topicExperiments(t.number)
+      `<optgroup label="IGCSE Topic ${t.number}: ${t.name}">${topicExperiments(t.number)
         .map((e) => `<option value="${e.id}">${esc(e.title)}</option>`)
         .join("")}</optgroup>`,
   ).join("") +
