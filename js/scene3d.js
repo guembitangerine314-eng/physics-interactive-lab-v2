@@ -1,5 +1,5 @@
 import { createBudget } from "./render-budget.js";
-import { realMaterial, benchTexture, benchFade } from "./scene-materials.js";
+import { realMaterial, setSceneTheme, benchTexture, benchFade } from "./scene-materials.js";
 import { apparatusBounds, frameApparatus, frameOrbit, diagramLabelVisible } from './scene-framing.js';
 import { sceneLabelAllowed } from './study-policy.js';
 import { wavelengthRGB } from './diagram-theme.js';
@@ -28,6 +28,8 @@ import {
   fieldAt,
   interferenceAt,
 } from "./physics-extra.js";
+/** Camera distance factor: below 1 brings every apparatus closer at the start. */
+export const SETUP_ZOOM = 0.9;
 const CYAN = 0x63efda,
   GOLD = 0xffc778,
   BLUE = 0x7baeff;
@@ -163,9 +165,9 @@ export class SceneView {
     // A quiet studio backdrop adds depth without adding anything to the model.
     const backdrop=document.createElement('canvas');backdrop.width=backdrop.height=512;
     const backdropContext=backdrop.getContext('2d'),backdropPaint=backdropContext.createRadialGradient(256,180,0,256,230,400);
-    backdropPaint.addColorStop(0,'#31586b');
-    backdropPaint.addColorStop(.47,'#18394f');
-    backdropPaint.addColorStop(1,'#071522');
+    backdropPaint.addColorStop(0,'#4a4640');
+    backdropPaint.addColorStop(.47,'#24262b');
+    backdropPaint.addColorStop(1,'#0b0c0f');
     backdropContext.fillStyle=backdropPaint;backdropContext.fillRect(0,0,512,512);
     this.studioBackdrop=new T.CanvasTexture(backdrop);this.studioBackdrop.colorSpace=T.SRGBColorSpace;
     this.scene.fog = new T.FogExp2(0x080f1b, 0.018);
@@ -281,11 +283,27 @@ export class SceneView {
         this.onEditStart?.();
         return;
       }
+      // Pressing on the apparatus moves the part; pressing on empty space turns the camera.
+      if (this.partDrag && this.overModel(pointer(e))) {
+        e.preventDefault();
+        const rect = c.getBoundingClientRect(), flip = Math.cos(this.azimuth) < 0 ? -1 : 1,
+          across = (e.clientX - rect.left) / rect.width;
+        this.draggingPart = { start: [e.clientX, e.clientY], flip, scale: 900 / rect.width };
+        this.partDrag.begin(flip < 0 ? 1 - across : across);
+        c.setPointerCapture(e.pointerId);
+        c.classList.add("editing-vector");
+        return;
+      }
       down = [e.clientX, e.clientY];
       c.setPointerCapture(e.pointerId);
       c.classList.add("dragging");
     };
     this.handlers.pointermove = (e) => {
+      if (this.draggingPart) {
+        const d = this.draggingPart;
+        this.partDrag?.move((e.clientX - d.start[0]) * d.flip * d.scale, (e.clientY - d.start[1]) * d.scale);
+        return;
+      }
       if (this.editingHandle) {
         const patch = this.curriculum?.interaction?.move(
           pointer(e),
@@ -297,6 +315,7 @@ export class SceneView {
       if (!down) {
         c.classList.toggle(
           "over-handle",
+          (!!this.partDrag && this.overModel(pointer(e))) ||
           !!this.curriculum?.interaction?.pick(pointer(e), this.camera),
         );
         return;
@@ -313,6 +332,10 @@ export class SceneView {
       down = [e.clientX, e.clientY];
     };
     this.handlers.pointerup = () => {
+      if (this.draggingPart) {
+        this.draggingPart = null;
+        this.partDrag?.end();
+      }
       if (this.editingHandle) {
         this.editingHandle = false;
         this.curriculum?.interaction?.end();
@@ -416,6 +439,7 @@ export class SceneView {
     this.objects = {};
   }
   build(type, p, studyMode) {
+    setSceneTheme(type);
     const newModel = this.type !== type;
     this.clear();
     this.framingBounds = null;
@@ -913,8 +937,9 @@ export class SceneView {
       this.radius=fit.radius*(Number.isFinite(zoom)?zoom:1);
       if (this.orbitNewModel) {this.home();this.orbitNewModel=false;}
     }
+    // The apparatus opens large; zooming out is one scroll away.
     const cameraRadius =
-      this.radius *
+      SETUP_ZOOM * this.radius *
       (!this.framingBounds && !this.orbitComposition && (ADVANCED_IDS.includes(type) || this.curriculum || this.precision)
         ? Math.max(1, (this.curriculum?.camera?.fitAspect || this.precision?.fitAspect || (type === "buoyancy" ? 1.05 : type === "lenses" ? 1.55 : 1.35)) / this.camera.aspect)
         : 1);
@@ -936,6 +961,13 @@ export class SceneView {
       this.firstFrame = true;
       this.canvas.setAttribute("aria-busy", "false");
     }
+  }
+  /** True when a pointer (in clip coordinates) is over a solid part of the apparatus. */
+  overModel(point) {
+    this.raycaster ??= new T.Raycaster();
+    this.raycaster.setFromCamera(point, this.camera);
+    return this.raycaster.intersectObjects(this.root.children, true)
+      .some((hit) => hit.object.isMesh && hit.object.visible && hit.object.userData.role !== "label");
   }
   dispose() {
     this.clear();

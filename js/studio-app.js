@@ -765,6 +765,50 @@ function applyParams(next) {
   if (!lab.userPaused) lab.running = true;
   syncPlay();
 }
+/** Turn a handle position into parameters, inside each control's range and step. */
+function applyHandle(handle, x, y) {
+  const next = { ...lab.params };
+  for (const [key, value] of Object.entries(handle.drag(x, y))) {
+    const control = lab.definition.controls.find((c) => c.key === key);
+    if (control && Number.isFinite(value))
+      next[key] = snapToControl(value, studyControl(lab.type, lab.studyMode, control));
+  }
+  if (Object.keys(next).every((key) => next[key] === lab.params[key])) return;
+  try {
+    applyParams(next);
+    $("#control-error").textContent = "";
+  } catch (error) {
+    $("#control-error").textContent = error.message;
+  }
+  syncInputs();
+  handleState.moved = handleState.used = true;
+}
+/** The same handles, driven from the 3D view: press on the apparatus and move.
+ * The press picks the nearest part; movement is applied relative to where
+ * that part sits in the diagram layout, so both views set identical values. */
+function partDrag3D() {
+  const W = 900, H = 520, boundLab = lab;
+  let origin = null;
+  return {
+    begin(across) {
+      const handles = handlesFor(lab, W, H),
+        handle = handles.reduce((best, h) => (Math.abs(h.at[0] / W - across) < Math.abs(best.at[0] / W - across) ? h : best));
+      origin = [...handle.at];
+      Object.assign(handleState, { active: handle.id, moved: false, held: Object.keys(handle.hold ?? {}) });
+      Object.assign(lab, handle.hold);
+    },
+    move(dx, dy) {
+      if (lab !== boundLab || !origin) return;
+      const handle = handlesFor(lab, W, H).find((h) => h.id === handleState.active);
+      if (handle) applyHandle(handle, origin[0] + dx, origin[1] + dy);
+    },
+    end() {
+      origin = null;
+      handleState.active = null;
+      if (lab === boundLab) for (const key of handleState.held ?? []) delete lab[key];
+    },
+  };
+}
 /** Grab-and-drag on the 2D diagram: the same parameters as the sliders. */
 let handleState = { active: null, hover: null, used: false };
 let apparatus = null;
@@ -774,8 +818,7 @@ function bindHandles() {
   if (!hasHandles(lab.type)) return;
   canvas.style.touchAction = "none";
   $(".stage-top .running-status")?.insertAdjacentHTML("afterend",
-    '<button type="button" class="hands-on" id="hands-on">✋ Hands-on: drag it yourself</button>');
-  $("#hands-on").onclick = () => $('[data-view="2d"]')?.click();
+    '<span class="hands-on" id="hands-on">✋ Press a part and drag to move it</span>');
   const local = (e) => {
       const r = canvas.getBoundingClientRect();
       return [e.clientX - r.left, e.clientY - r.top];
@@ -801,22 +844,7 @@ function bindHandles() {
       return;
     }
     const handle = current().find((h) => h.id === handleState.active);
-    if (!handle) return;
-    const next = { ...lab.params };
-    for (const [key, value] of Object.entries(handle.drag(...position))) {
-      const control = lab.definition.controls.find((c) => c.key === key);
-      if (control && Number.isFinite(value))
-        next[key] = snapToControl(value, studyControl(lab.type, lab.studyMode, control));
-    }
-    if (Object.keys(next).every((key) => next[key] === lab.params[key])) return;
-    try {
-      applyParams(next);
-      $("#control-error").textContent = "";
-    } catch (error) {
-      $("#control-error").textContent = error.message;
-    }
-    syncInputs();
-    handleState.moved = handleState.used = true;
+    if (handle) applyHandle(handle, ...position);
   };
   const release = () => {
     if (!handleState.active) return;
@@ -1297,6 +1325,7 @@ async function setView(mode) {
       const nextCanvas = previousCanvas.cloneNode(false);
       previousCanvas.replaceWith(nextCanvas);
       view = new SceneView(nextCanvas);
+      view.partDrag = hasHandles(lab.type) ? partDrag3D() : null;
       const magnet = lab.type === "magnet-coil";
       view.onParameterEdit = magnet ? ({distance}) => moveManualMagnet(distance) : editVector;
       view.onEditStart = magnet ? beginManualMagnet : beginVectorEdit;

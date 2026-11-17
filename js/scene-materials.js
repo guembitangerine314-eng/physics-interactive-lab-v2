@@ -100,6 +100,35 @@ export function benchFade() {
   return cache.get("fade");
 }
 
+/** Real apparatus is not one colour scheme. Each experiment draws its kit from
+ * one of these sets, chosen from its name, so benches differ from each other:
+ * [base board, frame and rods, feet and clamps]. Teaching colours (the gold
+ * mass, the cyan ray) are never touched, because labels refer to them. */
+const KITS = [
+  { base: [0xd8c08f, "wood"], frame: [0xbfc4c9, "steel"], foot: [0x25282b, "rubber"] },   // birch board, steel rods, cast iron
+  { base: [0xe8e2d2, "ceramic"], frame: [0x2f3338, "rubber"], foot: [0x9c2f2a, "satin"] }, // cream enamel, black frame, red clamps
+  { base: [0x7f9a86, "satin"], frame: [0xc9a35a, "brass"], foot: [0x3b2a20, "wood"] },     // sage board, brass, dark wood
+  { base: [0xc6ccd1, "satin"], frame: [0xd5d9dd, "steel"], foot: [0x1f3a5f, "satin"] },    // grey laminate, aluminium, navy enamel
+  { base: [0xb9825a, "wood"], frame: [0x8f969d, "steel"], foot: [0x1d1f21, "rubber"] },    // cherry board, gunmetal, black
+  { base: [0xdfd6c6, "ceramic"], frame: [0xb88a4a, "brass"], foot: [0x4a5a3a, "satin"] },  // ivory, brass, olive
+];
+let kit = KITS[0];
+/** Choose the kit for the experiment about to be built. */
+export function setSceneTheme(type) {
+  let hash = 0;
+  for (const ch of String(type)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  kit = KITS[hash % KITS.length];
+  return KITS.indexOf(kit);
+}
+/** Structural blue-greys (boards, rods, feet) become real materials from the kit. */
+export function kitColour(color, extra = {}) {
+  if (extra.emissive !== undefined || extra.map || extra.transparent) return null;
+  probe.set(color).getHSL(hsl);
+  const { h, s, l } = hsl;
+  if (h < 0.5 || h > 0.63 || s < 0.1 || s > 0.5 || l >= 0.88) return null;
+  return l >= 0.62 ? kit.base : l >= 0.36 ? kit.frame : kit.foot;
+}
+
 const probe = new T.Color(), hsl = { h: 0, s: 0, l: 0 };
 /** What a part of this colour is made of. */
 export function finishFor(color, extra = {}) {
@@ -126,7 +155,9 @@ const RECIPES = {
 };
 /** One material per part. Anything the caller sets explicitly wins. */
 export function realMaterial(color, extra = {}) {
-  const finish = finishFor(color, extra), recipe = RECIPES[finish]();
+  const swap = kitColour(color, extra);
+  if (swap) color = swap[0];
+  const finish = swap ? swap[1] : finishFor(color, extra), recipe = RECIPES[finish]();
   for (const key of Object.keys(recipe)) if (recipe[key] === null) delete recipe[key];
   const physical = "clearcoat" in recipe,
     material = new (physical ? T.MeshPhysicalMaterial : T.MeshStandardMaterial)({ color, ...recipe, ...extra });
