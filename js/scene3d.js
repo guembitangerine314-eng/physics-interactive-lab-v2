@@ -148,17 +148,25 @@ export class SceneView {
     canvas.setAttribute("aria-busy", "true");
     this.renderer = new T.WebGLRenderer({
       canvas,
-      antialias: true,
+      // Multisampling on top of a dense screen is the costliest thing an
+      // integrated GPU does here; a 1.5x surface is already smooth without it.
+      antialias: (globalThis.devicePixelRatio || 1) < 1.5,
       alpha: false,
       powerPreference: "high-performance",
     });
     // Start no higher than 1.5× and step down if frames arrive slowly: a 2×
     // surface with antialiasing is too much for integrated graphics.
-    this.budget = createBudget({ start: Math.min(devicePixelRatio || 1, 1.5), floor: 1, slowMs: 27, window: 50 });
+    this.budget = createBudget({ start: Math.min(devicePixelRatio || 1, 1.5), floor: 1, slowMs: 21, window: 36 });
+    // Draw only while the stage is on screen; the model keeps running.
+    this.onScreen = true;
+    if (typeof IntersectionObserver === "function") {
+      this.screenWatch = new IntersectionObserver(([entry]) => { this.onScreen = entry.isIntersecting; });
+      this.screenWatch.observe(canvas);
+    }
     this.renderer.setPixelRatio(this.budget.ratio);
     this.renderer.setClearColor(0x080f1b);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = T.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = T.PCFShadowMap;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.12;
     this.scene = new T.Scene();
@@ -218,9 +226,8 @@ export class SceneView {
     this.dust = dustField();
     this.scene.add(this.dust);
     // A cool counter-light opposite the world-coloured rim light.
-    this.counterLight = new T.PointLight(0x7cf4ff, 16, 24);
-    this.counterLight.position.set(-6, 3.5, -3.5);
-    this.scene.add(this.counterLight);
+    this.fillLight.color.set(0x8fdcf0);
+    this.fillLight.position.set(-6, 3.5, -3.5);
     const grid = studioGrid();
     grid.position.y = -0.8;
     grid.material.transparent = true;
@@ -480,8 +487,7 @@ export class SceneView {
     if (type === "earthmoon") this.keyLight.position.set(-10, 0, 0);
     this.rimLight.intensity = space ? 0 : 46;
     this.rimLight.color.copy(accent);
-    this.counterLight.intensity = space ? 0 : 16;
-    this.fillLight.intensity = type === 'gravity' ? 0.45 : space ? 0.05 : 0.8;
+    this.fillLight.intensity = type === 'gravity' ? 0.45 : space ? 0.05 : 1.15;
     this.scene.environmentIntensity = type === 'gravity' ? 0.3 : space ? 0.08 : 1.1;
     this.stars.visible = space;
     const r = this.root,
@@ -1005,6 +1011,7 @@ export class SceneView {
       this.dust.rotation.y = beat * 0.012;
       this.dust.position.y = Math.sin(beat * 0.22) * 0.25;
     }
+    if (this.onScreen === false) return;
     this.renderer.render(this.scene, this.camera);
     if (this.budget?.frame(performance.now())) {
       this.renderer.setPixelRatio(this.budget.ratio);
@@ -1023,6 +1030,7 @@ export class SceneView {
       .some((hit) => hit.object.isMesh && hit.object.visible && hit.object.userData.role !== "label");
   }
   dispose() {
+    this.screenWatch?.disconnect();
     this.clear();
     this.scene.traverse((o) => {
       o.geometry?.dispose();

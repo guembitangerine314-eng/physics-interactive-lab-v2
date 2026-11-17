@@ -153,12 +153,13 @@ const RECIPES = {
   plain: () => ({ roughness: 0.4, metalness: 0.2, envMapIntensity: 0.6 }),
   glass: () => ({ roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.5, reflectivity: 0.6 }),
   rubber: () => ({ roughness: 0.78, metalness: 0.12, envMapIntensity: 0.55, roughnessMap: satinMap() }),
-  ceramic: () => ({ roughness: 0.3, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.25, envMapIntensity: 0.8 }),
+  ceramic: () => ({ roughness: 0.22, metalness: 0.02, envMapIntensity: 1.0 }),
   deck: () => ({ roughness: 0.36, metalness: 0.78, envMapIntensity: 1.25, roughnessMap: brushedMap() }),
   steel: () => ({ roughness: 0.5, metalness: 0.86, envMapIntensity: 1.25, roughnessMap: brushedMap() }),
   brass: () => ({ roughness: 0.42, metalness: 0.92, envMapIntensity: 1.3, roughnessMap: brushedMap() }),
   wood: () => ({ roughness: 0.62, metalness: 0, envMapIntensity: 0.45, map: grainMap() }),
-  satin: () => ({ roughness: 0.38, metalness: 0.04, clearcoat: 0.55, clearcoatRoughness: 0.3, envMapIntensity: 0.85, roughnessMap: satinMap() }),
+  // No clear coat: a second highlight per pixel costs more than it shows.
+  satin: () => ({ roughness: 0.3, metalness: 0.06, envMapIntensity: 1.0, roughnessMap: satinMap() }),
 };
 /** One material per part. Anything the caller sets explicitly wins. */
 export function realMaterial(color, extra = {}, hint = null) {

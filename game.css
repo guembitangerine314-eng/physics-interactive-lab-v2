@@ -64,7 +64,16 @@ html body.lab-dark {
     radial-gradient(900px 640px at -6% 108%, rgba(91, 61, 255, 0.32), transparent 62%),
     radial-gradient(700px 500px at 50% 120%, rgba(255, 61, 139, 0.16), transparent 65%),
     var(--void);
-  background-attachment: fixed;
+}
+/* The sky is one fixed layer, so scrolling never repaints the gradients. */
+html body.lab-dark::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: inherit;
+  transform: translateZ(0);
 }
 html:has(body.field-page), html:has(body.lab-dark) { background: var(--void); }
 
@@ -620,3 +629,18 @@ html body.lab-dark #main .lab-page .solar-atlas-link {
 }
 html body.lab-dark #main .lab-page .solar-atlas-link strong { font-family: var(--font-display); font-weight: 700; color: #fff; }
 html body.lab-dark #main .lab-page .solar-atlas-link :is(small, span) { color: var(--soft); }
+/* Motor close-up: dark panel; the two drawings are flipped to light-on-dark. */
+html body.lab-dark #main .lab-page .commutator-panel { background: var(--hull); border: 1px solid var(--rule); border-radius: 0; }
+html body.lab-dark #main .lab-page .commutator-diagrams figure { background: #fff; border-radius: 0; filter: invert(1) hue-rotate(180deg); }
+html body.lab-dark #main .lab-page .commutator-diagrams figure :is(figcaption, span, p, strong) { color: #24303a; }
+html body.lab-dark #main .lab-page .commutator-modes button { color: var(--ink); background: var(--hull-up); border-color: var(--rule); border-radius: 0; }
+html body.lab-dark #main .lab-page .commutator-modes button[aria-pressed="true"] { color: #0a0820; background: var(--world); border-color: var(--world); }
+/* Light panels left over from the old theme. */
+html body.lab-dark #main .lab-page :is(.commutator-result, .machine-rule, .buoyancy-reading, .force-card, .buoyancy-reading span, article:not(.lesson-card), .lab-grid p[style*="background"]) {
+  color: var(--ink);
+  background: var(--hull-up);
+  border-color: var(--rule);
+  border-radius: 0;
+}
+html body.lab-dark #main .lab-page :is(.commutator-result, .machine-rule, .buoyancy-reading, .force-card, article:not(.lesson-card)) :is(p, span, small, li) { color: var(--soft); background: transparent; }
+html body.lab-dark #main .lab-page :is(.machine-rule, .buoyancy-reading, .force-card, article:not(.lesson-card)) :is(h2, h3, h4, strong, b) { color: #fff; }
