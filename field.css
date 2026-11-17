@@ -28,6 +28,9 @@ body.field-page {
   background-attachment: fixed;
 }
 body.field-page #backdrop { display: block; }
+/* Short pages: keep the dark field below the footer instead of the light page colour. */
+html:has(body.field-page) { background: var(--field); }
+body.field-page { min-height: 100vh; }
 body.field-page:has(.field-topic) #backdrop { opacity: 0.34; }
 body.field-page .site-header,
 body.field-page main,
