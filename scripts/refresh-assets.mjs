@@ -11,6 +11,7 @@ html = html.replace(/    <!-- Versioned local module graph:[\s\S]*?    <\/script
 html = html.replace(/href="\.\/cinematic\.css(?:\?v=[^"]*)?"/, `href="./cinematic.css?v=${version}"`);
 html = html.replace(/href="\.\/design\.css(?:\?v=[^"]*)?"/, `href="./design.css?v=${version}"`);
 html = html.replace(/href="\.\/consolidated\.css(?:\?v=[^"]*)?"/, `href="./consolidated.css?v=${version}"`);
+html = html.replace(/href="\.\/field\.css(?:\?v=[^"]*)?"/, `href="./field.css?v=${version}"`);
 html = html.replace(/    <script type="module" src="\.\/js\/app\.js(?:\?v=[^"]*)?"><\/script>/,
   `${map}\n    <script type="module" src="./js/app.js?v=${version}"></script>`);
 await writeFile("index.html", html);
