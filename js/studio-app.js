@@ -29,6 +29,8 @@ import {
 } from "./learning-paths.js";
 import { renderSyllabus } from "./syllabus.js";
 import { experimentLink } from "./integration.js";
+import { TOPICS, topicBySlug, topicExperiments, topicExtensions, topicNeighbours, topicOf, searchExperiments } from "./topic-map.js";
+import { createBackdrop } from "./field-backdrop.js";
 import {
   createOrbit,
   stepOrbit,
@@ -176,9 +178,116 @@ function card(id, preferredMode) {
     ink = ({Mechanics:'#2573b5',Oscillations:'#a076c9',Waves:'#168e8f',Optics:'#6b78cc',Electricity:'#bd8433',Magnetism:'#b56a7b','Thermal physics':'#ba7554','Nuclear physics':'#8c69b6','Space physics':'#3c81b6',Astrophysics:'#7770c0','Quantum physics':'#7b6bb7'})[d.category] || '#238a9c';
   return `<a class="simulation-card" href="#/${id}?level=${resolveMode(id, typeof preferredMode === "string" ? (preferredMode === "as" || preferredMode === "a2" ? "alevel" : preferredMode) : null)}" style="--accent:${d.color};--card-ink:${ink}"><div class="card-art">${catalogueArt(id,thumbnail(id))}<span class="art-label">${d.category.toUpperCase()}</span><span class="card-dimension">${d.diagramOnly ? "INTERACTIVE DIAGRAM" : icon("cube") + " 3D + 2D"}</span></div><div class="card-body"><div class="card-meta">${preferredMode === "igcse" ? "CAMBRIDGE IGCSE · 0625" : levelBadges(id)}${d.isNew ? '<span class="new-lab-badge">NEW</span>' : ""}</div><h3>${studyTitle(id,preferredMode,d.short)}</h3><p>${preferredMode === "igcse" ? esc(getProfile(id,"igcse").goals.slice(0,2).join(". ")) + "." : d.summary}</p><div class="card-bottom"><span>Open experiment</span><span class="card-open-icon">${icon("arrow")}</span></div></div></a>`;
 }
+const backdrop = createBackdrop($("#backdrop"), TOPICS);
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+/** Start screen: a headline, a search box and the six IGCSE areas. Nothing else. */
 function home() {
+  $("#main").innerHTML = `<section class="field-home">
+    <div class="field-intro">
+      <h1>Physics,<br><em>made visible.</em></h1>
+      <p>Pick a topic, open an experiment, change one thing and watch what happens.</p>
+      <div class="field-search">
+        <input type="search" id="search" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" aria-label="Find an experiment" autocomplete="off" spellcheck="false" placeholder="Find an experiment, such as pendulum or lenses">
+        <ul id="search-results" role="listbox" aria-label="Matching experiments" hidden></ul>
+      </div>
+    </div>
+    <p class="field-caption" aria-hidden="true"><span id="caption-topic"></span><strong id="caption-scene"></strong></p>
+    <nav class="topic-rail" aria-label="IGCSE topics in syllabus order">${TOPICS.map((t) => `<a href="#/${t.slug}" data-topic="${t.number}" style="--accent:${t.accent}"><span class="topic-number" aria-hidden="true">${t.number}</span><span class="topic-name">${t.name}</span><span class="topic-count">${plural(topicExperiments(t.number).length, "experiment")}</span></a>`).join("")}</nav>
+    <p class="field-more"><a href="#/library">All ${LAB_COUNT} experiments</a><a href="#/course">IGCSE lesson map</a><a href="#/syllabus">Learning paths</a><a href="#/textbook">A Level practice</a><a href="#/olympiad">Olympiad</a></p>
+  </section>`;
+  const rail = $(".topic-rail"), input = $("#search"), results = $("#search-results");
+  backdrop.onChange((index) => {
+    const t = TOPICS[index];
+    if (!$("#caption-topic")) return;
+    $("#caption-topic").textContent = `Topic ${t.number}`;
+    $("#caption-scene").textContent = t.scene;
+    $(".field-caption").style.setProperty("--accent", t.accent);
+    $$("a", rail).forEach((a, i) => a.classList.toggle("is-live", i === index));
+  });
+  backdrop.show(backdrop.current, { instant: true });
+  $("#caption-topic").textContent = `Topic ${TOPICS[backdrop.current].number}`;
+  $("#caption-scene").textContent = TOPICS[backdrop.current].scene;
+  $(".field-caption").style.setProperty("--accent", TOPICS[backdrop.current].accent);
+  $$("a", rail)[backdrop.current].classList.add("is-live");
+  backdrop.cycle(true);
+  // Pointing at or tabbing to a topic previews its scene; leaving resumes the tour.
+  $$("a", rail).forEach((a, i) => {
+    const pin = () => {
+      backdrop.cycle(false);
+      backdrop.show(i);
+    };
+    a.addEventListener("pointerenter", pin);
+    a.addEventListener("focus", pin);
+  });
+  rail.addEventListener("pointerleave", () => backdrop.cycle(true));
+  rail.addEventListener("focusout", (e) => {
+    if (!rail.contains(e.relatedTarget)) backdrop.cycle(true);
+  });
+  let active = -1;
+  const close = () => {
+    results.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
+    active = -1;
+  };
+  const mark = () =>
+    $$("li[role=option]", results).forEach((li, i) => {
+      li.setAttribute("aria-selected", String(i === active));
+      if (i === active) input.setAttribute("aria-activedescendant", li.id);
+    });
+  input.oninput = () => {
+    const q = input.value.trim(), found = searchExperiments(q);
+    if (!q) return close();
+    results.innerHTML = found.length
+      ? found.map((e, i) => `<li role="option" id="search-option-${i}" aria-selected="false"><a tabindex="-1" href="#/${e.id}${e.igcse ? "?level=igcse" : ""}"><strong>${esc(e.title)}</strong><span>${e.igcse ? `Topic ${e.topic}` : "A Level and beyond"}</span></a></li>`).join("")
+      : `<li class="search-empty">No experiment matches “${esc(q)}”. Try waves, light or motion.</li>`;
+    results.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    active = -1;
+  };
+  input.onkeydown = (e) => {
+    const options = $$("li[role=option] a", results);
+    if (e.key === "Escape") return close();
+    if (results.hidden || !options.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      active = (active + (e.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+      mark();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      location.hash = (options[Math.max(0, active)]).getAttribute("href");
+    }
+  };
+  input.onblur = () => setTimeout(() => !results.contains(document.activeElement) && close(), 150);
+}
+/** One IGCSE area: every experiment in syllabus order, one click from the start screen. */
+function topicPage(topic) {
+  const list = topicExperiments(topic.number), more = topicExtensions(topic.number);
+  backdrop.onChange(null);
+  backdrop.cycle(false);
+  backdrop.show(topic.number - 1);
+  $("#main").innerHTML = `<section class="field-topic" style="--accent:${topic.accent}">
+    <nav class="topic-tabs" aria-label="IGCSE topics"><a class="topic-tabs-home" href="#/">All topics</a>${TOPICS.map((t) => `<a href="#/${t.slug}" style="--accent:${t.accent}"${t === topic ? ' aria-current="page"' : ""}><b>${t.number}</b>${t.short}</a>`).join("")}</nav>
+    <header class="topic-heading"><span class="topic-number" aria-hidden="true">${topic.number}</span><div><h1>${topic.name}</h1><p>${plural(list.length, "experiment")} in syllabus order, for Cambridge IGCSE Physics 0625.</p></div></header>
+    <ol class="topic-list">${list.map((e) => `<li><a href="#/${e.id}?level=igcse"><span class="topic-thumb">${thumbnail(e.id)}</span><span class="topic-item-copy"><strong>${esc(e.title)}</strong><span>${esc(e.goals.slice(0, 2).join(". "))}.</span></span><span class="topic-ref" title="Syllabus section ${e.refs[0]}">${e.refs[0]}</span></a></li>`).join("")}</ol>
+    ${more.length ? `<section class="topic-further"><h2>Go further</h2><p>A Level and enrichment models built on the same ideas.</p><div>${more.map((e) => `<a href="#/${e.id}">${esc(e.title)}<span>${e.level}</span></a>`).join("")}</div></section>` : ""}
+  </section>`;
+}
+/** Where the reader is, with previous and next inside the same IGCSE area. */
+function labTrail(type, mode) {
+  const d = SIMULATIONS[type], n = topicNeighbours(type),
+    topic = TOPICS[(topicOf(type) ?? 0) - 1],
+    here = esc(studyTitle(type, mode, d.short)), sep = '<i aria-hidden="true">›</i>';
+  if (mode !== "igcse" || !topic || n.index < 0)
+    return `<nav class="lab-trail" aria-label="Where you are"><span class="lab-trail-path"><a href="#/">Topics</a>${sep}<a href="#/library">All experiments</a>${sep}${topic ? `<a href="#/${topic.slug}">${topic.name}</a>${sep}` : ""}<span>${here}</span></span></nav>`;
+  const step = (e, label, name) =>
+    e ? `<a class="${name}" href="#/${e.id}?level=igcse" title="${esc(e.title)}">${label}</a>`
+      : `<span class="${name}" aria-disabled="true">${label}</span>`;
+  return `<nav class="lab-trail" style="--accent:${topic.accent}" aria-label="Where you are"><span class="lab-trail-path"><a href="#/">Topics</a>${sep}<a href="#/${topic.slug}">${topic.number} ${topic.name}</a>${sep}<span>${here}</span></span><span class="lab-trail-step">${step(n.previous, "Previous", "previous")}<span>${n.index + 1} of ${n.total}</span>${step(n.next, "Next", "next")}</span></nav>`;
+}
+function library() {
   $("#main").innerHTML =
-    `<section class="library-intro page-width"><div class="library-intro-copy"><span class="eyebrow"><span class="status-dot"></span> YOUR INTERACTIVE PHYSICS LAB</span><h1>Physics,<br><em>made visible.</em></h1><p>Explore the ideas behind the equations. Change a variable, follow the motion and see the physics for yourself.</p><div class="library-intro-actions"><a class="button" href="#simulations">Explore the experiments ${icon('arrow')}</a><a class="intro-course-link" href="#/course">Find your IGCSE lesson ↗</a></div><div class="library-intro-facts"><span><strong>${LAB_COUNT}</strong> working models</span><span><strong>2D + 3D</strong> two ways to see it</span><span><strong>CAIE</strong> focused learning levels</span></div></div><div class="library-illustration"><span class="illustration-kicker">A DIFFERENT WAY TO UNDERSTAND</span>${libraryHeroArt()}<span class="illustration-caption">Explore the model. Discover the connection.</span></div></section><div class="page-width"><section id="simulations" class="catalogue"><div class="section-heading"><div><div class="eyebrow">THE EXPERIMENT COLLECTION</div><h2>What will you discover?</h2><p>Choose your course and a topic to get started.</p></div><label class="library-search"><span aria-hidden="true">⌕</span><input type="search" id="search" aria-label="Search simulations" placeholder="Find an experiment…"></label></div><div class="catalogue-tools"><div class="category-filters" aria-label="Filter simulations">${CATEGORIES.map((c, i) => `<button class="${i === 0 ? "active" : ""}" data-category="${c}" aria-pressed="${i === 0}">${c}</button>`).join("")}</div><span id="result-count">${LAB_COUNT} experiments</span></div><div class="simulation-grid" id="cards">${Object.keys(SIMULATIONS).map(card).join("")}</div><p id="empty-results" hidden>No experiments match that search. Try a topic such as waves, light or motion.</p></section><section class="method-band"><div><div class="eyebrow">MORE THAN AN ANIMATION</div><h3>A little curiosity.<br>A deeper understanding.</h3></div>${[
+    `<div class="page-width library-page"><div class="breadcrumb"><a href="#/">Topics</a><span>/</span><span>All experiments</span></div></div><div class="page-width"><section id="simulations" class="catalogue"><div class="section-heading"><div><div class="eyebrow">THE EXPERIMENT COLLECTION</div><h2>What will you discover?</h2><p>Choose your course and a topic to get started.</p></div><label class="library-search"><span aria-hidden="true">⌕</span><input type="search" id="search" aria-label="Search simulations" placeholder="Find an experiment…"></label></div><div class="catalogue-tools"><div class="category-filters" aria-label="Filter simulations">${CATEGORIES.map((c, i) => `<button class="${i === 0 ? "active" : ""}" data-category="${c}" aria-pressed="${i === 0}">${c}</button>`).join("")}</div><span id="result-count">${LAB_COUNT} experiments</span></div><div class="simulation-grid" id="cards">${Object.keys(SIMULATIONS).map(card).join("")}</div><p id="empty-results" hidden>No experiments match that search. Try a topic such as waves, light or motion.</p></section><section class="method-band"><div><div class="eyebrow">MORE THAN AN ANIMATION</div><h3>A little curiosity.<br>A deeper understanding.</h3></div>${[
       [
         "01",
         "Predict it.",
@@ -255,7 +364,7 @@ function home() {
     });
     filter();
   };
-  $("#library-level").value = "igcse";
+  $("#library-level").value = "all";
   categories();
   $("#search").oninput = filter;
   $("#library-level").onchange = categories;
@@ -361,7 +470,8 @@ function labPage(type, query) {
       .filter(([id, v]) => id !== type && v.category === d.category)
       .slice(0, 2)
       .map(([id, v]) => `<a href="#/${id}">${v.short} ${icon("arrow")}</a>`)
-      .join("")}<a href="#/">All experiments ${icon("arrow")}</a></div></div>`;
+      .join("")}${topicOf(type) ? `<a href="#/${TOPICS[topicOf(type) - 1].slug}">Back to ${TOPICS[topicOf(type) - 1].name} ${icon("arrow")}</a>` : ""}<a href="#/library">All experiments ${icon("arrow")}</a></div></div>`;
+  $(".lab-page").insertAdjacentHTML("afterbegin", labTrail(type, studyMode));
   if (
     !d.curriculum &&
     ![
@@ -1689,7 +1799,7 @@ function route() {
           ? "olympiad"
           : id === "questions" || id === "teacher" || id === "textbook"
           ? "questions"
-          : !type
+          : !type || topicOf(type)
             ? "home"
             : "");
     a.classList.toggle("active", active);
@@ -1707,7 +1817,16 @@ function route() {
     const olympiad = id === "olympiad";
     document.title = `${olympiad ? "Physics Olympiad" : "A Level"} practice · Physics Interactive Lab`;
     renderTextbookLibrary($("#main"), olympiad, new URLSearchParams(query));
-  } else home();
+  } else if (topicBySlug(id)) {
+    document.title = `${topicBySlug(id).name} · Physics Interactive Lab`;
+    topicPage(topicBySlug(id));
+  } else if (id === "library" || id === "simulations") library();
+  else home();
+  // The living backdrop belongs to the start screen and the topic pages only.
+  const field = !type && !embedded && (id === "" || id === undefined || Boolean(topicBySlug(id)));
+  document.body.classList.toggle("field-page", field);
+  if (field) backdrop.start();
+  else backdrop.stop();
   window.scrollTo(0, 0);
   lastFrame = 0;
   if (location.hash === "#simulations")
@@ -1782,15 +1901,16 @@ function frame(now) {
 }
 $("#lab-select").innerHTML =
   '<option value="">Jump to an experiment</option>' +
-  CATEGORIES.slice(1)
-    .map(
-      (category) =>
-        `<optgroup label="${category}">${Object.entries(SIMULATIONS)
-          .filter(([id, d]) => d.category === category)
-          .map(([id, d]) => `<option value="${id}">${d.short}</option>`)
-          .join("")}</optgroup>`,
-    )
-    .join("");
+  TOPICS.map(
+    (t) =>
+      `<optgroup label="${t.number} ${t.name}">${topicExperiments(t.number)
+        .map((e) => `<option value="${e.id}">${esc(e.title)}</option>`)
+        .join("")}</optgroup>`,
+  ).join("") +
+  `<optgroup label="A Level and enrichment">${Object.entries(SIMULATIONS)
+    .filter(([id]) => !availableModes(id).includes("igcse"))
+    .map(([id, d]) => `<option value="${id}">${esc(d.short)}</option>`)
+    .join("")}</optgroup>`;
 $("#lab-select").onchange = (e) => {
   location.hash = e.target.value ? `/${e.target.value}` : "/";
 };

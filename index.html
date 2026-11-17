@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#10283e" />
+    <meta name="theme-color" content="#06121d" />
     <meta
       name="description"
-      content="57 interactive physics laboratories with live calculations, a FocusPhysics IGCSE course map and Cambridge 9702 practice questions."
+      content="59 interactive physics laboratories with live calculations, a FocusPhysics IGCSE course map and Cambridge 9702 practice questions."
     />
     <title>Physics Interactive Lab · Make physics move</title>
     <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="./cinematic.css?v=20.13.0" />
     <link rel="stylesheet" href="./design.css?v=20.13.0" />
     <link rel="stylesheet" href="./consolidated.css?v=20.13.0" />
+    <link rel="stylesheet" href="./field.css?v=20.13.0" />
     <script defer src="./vendor/chart.umd.js"></script>
     <!-- Versioned local module graph: npm run refresh-assets -->
     <script type="importmap" id="lab-module-map">
@@ -49,6 +50,7 @@
           "./js/diagram-theme.js": "./js/diagram-theme.js?v=20.13.0",
           "./js/embed-builder.js": "./js/embed-builder.js?v=20.13.0",
           "./js/expanded-view.js": "./js/expanded-view.js?v=20.13.0",
+          "./js/field-backdrop.js": "./js/field-backdrop.js?v=20.13.0",
           "./js/field-geometry.js": "./js/field-geometry.js?v=20.13.0",
           "./js/galvanometer.js": "./js/galvanometer.js?v=20.13.0",
           "./js/generator-slip-rings.js": "./js/generator-slip-rings.js?v=20.13.0",
@@ -135,6 +137,7 @@
           "./js/textbook-practice.js": "./js/textbook-practice.js?v=20.13.0",
           "./js/textbook-variants.js": "./js/textbook-variants.js?v=20.13.0",
           "./js/thermal-geometry.js": "./js/thermal-geometry.js?v=20.13.0",
+          "./js/topic-map.js": "./js/topic-map.js?v=20.13.0",
           "./js/transformer-console.js": "./js/transformer-console.js?v=20.13.0",
           "./js/transformer-visual.js": "./js/transformer-visual.js?v=20.13.0",
           "./js/vector-geometry.js": "./js/vector-geometry.js?v=20.13.0",
@@ -147,6 +150,7 @@
     <script type="module" src="./js/app.js?v=20.13.0"></script>
   </head>
   <body>
+    <canvas id="backdrop" aria-hidden="true"></canvas>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
       <a class="brand" href="#/" aria-label="Physics Interactive Lab home"
