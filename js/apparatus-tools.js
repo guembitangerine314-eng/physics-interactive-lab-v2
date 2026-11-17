@@ -314,8 +314,8 @@ export function installApparatus({ stage, surface, record, pause }) {
   let shown = "";
   return {
     /** Call every frame with the running lab. */
-    tick(lab) {
-      const time = lab?.state?.t;
+    tick(lab, drawnTime) {
+      const time = Number.isFinite(drawnTime) ? drawnTime : lab?.state?.t;
       if (!Number.isFinite(time)) return;
       stopwatch.feed(time);
       timer.feed(time);
