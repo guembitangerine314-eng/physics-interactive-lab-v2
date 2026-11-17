@@ -61,7 +61,7 @@ export function drawOscillation(canvas, lab) {
       : lab.oscillationVectors !== "forces";
   const text = (t, x, y, col = ink, size = 17, align = "left") => {
       c.fillStyle = col;
-      c.font = `500 ${Math.max(size, compact ? 19 : 0)}px Manrope,Segoe UI,sans-serif`;
+      c.font = `600 ${Math.max(size * 1.12, compact ? 19 : 14)}px Manrope,Segoe UI,sans-serif`;
       c.textAlign = align;
       c.fillText(t, x, y);
     },

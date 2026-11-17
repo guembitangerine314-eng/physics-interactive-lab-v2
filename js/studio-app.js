@@ -265,6 +265,7 @@ function pathsPage(query) {
   backdrop.cycle(true);
   backdrop.show(backdrop.current, { instant: true });
   $("#main").innerHTML = `<section class="field-paths">
+    <nav class="topic-trail" aria-label="Where you are"><span class="topic-trail-path"><a class="back-button" href="#/" aria-label="Back to the start screen"><span aria-hidden="true">←</span> Back</a></span></nav>
     <header class="paths-heading"><h1>Choose your topic.</h1><p>${level ? `${level.course}. Topics are in syllabus order.` : "Models that go beyond the syllabus."}</p></header>
     <nav class="level-switch" aria-label="Course level">${[...LEVELS.map((l) => [l.key, l.name]), ["enrichment", "Enrichment"]].map(([key, name]) => `<a href="#/syllabus?track=${key}"${key === track ? ' aria-current="page"' : ""}>${name}</a>`).join("")}</nav>
     ${level
@@ -293,7 +294,7 @@ function topicPage(topic) {
   backdrop.cycle(false);
   backdrop.show(topic.sceneIndex);
   $("#main").innerHTML = `<section class="field-topic" style="--accent:${topic.accent}">
-    <nav class="topic-trail" aria-label="Where you are"><span class="topic-trail-path"><a href="#/syllabus?track=${topic.level}">${level.name}</a>${sep}${topic.group ? `<span>${topic.group}</span>${sep}` : ""}<span>Topic ${topic.number}</span></span><span class="topic-trail-step">${step(previous, `Topic ${previous?.number}`)}${step(next, `Topic ${next?.number}`)}</span></nav>
+    <nav class="topic-trail" aria-label="Where you are"><span class="topic-trail-path"><a class="back-button" href="#/syllabus?track=${topic.level}" aria-label="Back to ${level.name} topics"><span aria-hidden="true">←</span> Back</a><a href="#/syllabus?track=${topic.level}">${level.name}</a>${sep}${topic.group ? `<span>${topic.group}</span>${sep}` : ""}<span>Topic ${topic.number}</span></span><span class="topic-trail-step">${step(previous, `Topic ${previous?.number}`)}${step(next, `Topic ${next?.number}`)}</span></nav>
     <header class="topic-heading"><p class="topic-label">Topic ${topic.number}</p><h1>${esc(topic.name)}</h1><p>${list.length ? `${plural(list.length, "experiment")} in syllabus order, for ${level.course}.` : "No experiments for this topic yet."}</p></header>
     <ol class="topic-list">${list.map((e) => `<li><a href="#/${e.id}?level=${topic.mode}"><span class="topic-thumb">${thumbnail(e.id)}</span><span class="topic-item-copy"><strong>${esc(e.title)}</strong><span>${esc(e.goals.slice(0, 2).join(". "))}.</span></span><span class="topic-ref" title="Syllabus section ${e.refs[0]}">${e.refs[0]}</span></a></li>`).join("")}</ol>
     ${more.length ? `<section class="topic-further"><h2>Go further</h2><p>A Level and enrichment models built on the same ideas.</p><div>${more.map((e) => `<a href="#/${e.id}">${esc(e.title)}<span>${e.level}</span></a>`).join("")}</div></section>` : ""}
@@ -304,11 +305,11 @@ function labTrail(type, mode) {
   const d = SIMULATIONS[type], n = topicNeighbours(type, mode), topic = n.topic,
     here = esc(studyTitle(type, mode, d.short)), sep = '<i aria-hidden="true">›</i>';
   if (!topic || n.index < 0)
-    return `<nav class="lab-trail" aria-label="Where you are"><span class="lab-trail-path"><a href="#/syllabus?track=enrichment">Enrichment</a>${sep}<span>${here}</span></span></nav>`;
+    return `<nav class="lab-trail" aria-label="Where you are"><span class="lab-trail-path"><a class="back-button" href="#/syllabus?track=enrichment" aria-label="Back to Enrichment"><span aria-hidden="true">←</span> Back</a><a href="#/syllabus?track=enrichment">Enrichment</a>${sep}<span>${here}</span></span></nav>`;
   const step = (e, label, name) =>
     e ? `<a class="${name}" href="#/${e.id}?level=${mode}" title="${esc(e.title)}">${label}</a>`
       : `<span class="${name}" aria-disabled="true">${label}</span>`;
-  return `<nav class="lab-trail" style="--accent:${topic.accent}" aria-label="Where you are"><span class="lab-trail-path"><a href="#/syllabus?track=${topic.level}">${levelByKey(topic.level).name}</a>${sep}<a href="#/${topic.slug}">Topic ${topic.number}: ${esc(topic.name)}</a>${sep}<span>${here}</span></span><span class="lab-trail-step">${step(n.previous, "Previous", "previous")}<span>${n.index + 1} of ${n.total}</span>${step(n.next, "Next", "next")}</span></nav>`;
+  return `<nav class="lab-trail" style="--accent:${topic.accent}" aria-label="Where you are"><span class="lab-trail-path"><a class="back-button" href="#/${topic.slug}" aria-label="Back to Topic ${topic.number}"><span aria-hidden="true">←</span> Back</a><a href="#/syllabus?track=${topic.level}">${levelByKey(topic.level).name}</a>${sep}<a href="#/${topic.slug}">Topic ${topic.number}: ${esc(topic.name)}</a>${sep}<span>${here}</span></span><span class="lab-trail-step">${step(n.previous, "Previous", "previous")}<span>${n.index + 1} of ${n.total}</span>${step(n.next, "Next", "next")}</span></nav>`;
 }
 function library() {
   $("#main").innerHTML =
@@ -739,6 +740,18 @@ function arrangeOrbitWorkbench() {
   notebookRow.append($(".insight-strip"), $(".notebook"));
   analysis.after(notebookRow);
 }
+/** Change parameters without stopping the show: the model keeps running, and
+ * a model that depends only on the clock keeps its place in time. */
+function applyParams(next) {
+  const t = lab.state?.t;
+  reset(next);
+  if (Number.isFinite(t) && Object.keys(lab.state).length === 1 && "t" in lab.state) {
+    lab.state = { t };
+    lab.nextSample = t;
+  }
+  if (!lab.userPaused) lab.running = true;
+  syncPlay();
+}
 /** Grab-and-drag on the 2D diagram: the same parameters as the sliders. */
 let handleState = { active: null, hover: null, used: false };
 function bindHandles() {
@@ -760,12 +773,9 @@ function bindHandles() {
     if (!handle) return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
-    Object.assign(handleState, { active: handle.id, wasRunning: lab.running, moved: false });
+    Object.assign(handleState, { active: handle.id, moved: false });
     handleState.held = Object.keys(handle.hold ?? {});
     Object.assign(lab, handle.hold);
-    // Hold the model still while it is being set up; it runs again on release.
-    lab.running = false;
-    syncPlay();
   };
   canvas.onpointermove = (e) => {
     if (lab !== boundLab || lab.view !== "2d") return;
@@ -786,9 +796,7 @@ function bindHandles() {
     }
     if (Object.keys(next).every((key) => next[key] === lab.params[key])) return;
     try {
-      reset(next);
-      lab.running = false;
-      syncPlay();
+      applyParams(next);
       $("#control-error").textContent = "";
     } catch (error) {
       $("#control-error").textContent = error.message;
@@ -799,11 +807,7 @@ function bindHandles() {
   const release = () => {
     if (!handleState.active) return;
     handleState.active = null;
-    if (lab === boundLab) {
-      for (const key of handleState.held ?? []) delete lab[key];
-      lab.running = handleState.wasRunning;
-      syncPlay();
-    }
+    if (lab === boundLab) for (const key of handleState.held ?? []) delete lab[key];
     if (handleState.moved) {
       handleState.suppressClick = true;
       setTimeout(() => (handleState.suppressClick = false), 0);
@@ -863,6 +867,7 @@ function reset(params = lab.params, { deferUI = false } = {}) {
     fieldKey: null,
     vectorProgress: 1,
     magnetInputAt: null,
+    replayAt: 0,
   });
   $$("[data-preset]").forEach((b) => b.setAttribute("aria-pressed", "false"));
   sample();
@@ -1030,7 +1035,7 @@ function bindControls() {
       const value = d.options ? raw : d.log ? (slider ? 10 ** raw : raw) : raw * (d.factor || 1);
       try {
         if (["induction","magnet-coil"].includes(lab.type) && d.key === "circuit") setInductionCircuit(value);
-        else reset({ ...lab.params, [d.key]: value });
+        else applyParams({ ...lab.params, [d.key]: value });
         $("#control-error").textContent = "";
       } catch (error) {
         $("#control-error").textContent = error.message;
@@ -1074,8 +1079,15 @@ function bindControls() {
       syncPlay();
       return;
     }
+    if (lab.ended && lab.replayAt) {
+      // Pressed while a finished run waits to replay: keep the end state on screen.
+      lab.replayAt = 0;
+      lab.userPaused = true;
+      return syncPlay();
+    }
     if (lab.ended) reset();
     lab.running = !lab.running;
+    lab.userPaused = !lab.running;
     syncPlay();
   };
   $("#reset").onclick = () => {
@@ -1312,7 +1324,7 @@ function syncPlay() {
     icon(lab.running ? "pause" : "play") +
     (lab.running ? " Pause" : lab.ended ? " Replay" : " Resume");
   $("#run-status").textContent = lab.ended
-    ? `${lab.ended.toUpperCase()} · PAUSED`
+    ? `${lab.ended.toUpperCase()} · ${lab.replayAt ? "REPLAYING" : "PAUSED"}`
     : lab.running
       ? "RUNNING"
       : "PAUSED";
@@ -1837,6 +1849,7 @@ function exportData() {
 function integrationStep() {
   return lab.definition.hFor?.(lab.params) ?? lab.definition.h;
 }
+const REPLAY_PAUSE_MS = 1800;
 function advance(count) {
   const h = integrationStep();
   for (let i = 0; i < count; i++) {
@@ -1854,6 +1867,8 @@ function advance(count) {
     if (end) {
       lab.ended = end;
       lab.running = false;
+      // A finished run rests on its last frame, then starts again by itself.
+      lab.replayAt = lab.userPaused ? 0 : performance.now() + REPLAY_PAUSE_MS;
       sample();
       syncPlay();
       break;
@@ -1954,6 +1969,11 @@ function frame(now) {
     heroView?.update(hero);
   }
   if (lab) {
+    if (lab.ended && lab.replayAt && now >= lab.replayAt && !document.hidden && !handleState.active) {
+      reset();
+      lab.running = true;
+      syncPlay();
+    }
     if (lab.magnetManual && !document.hidden) {
       lab.state.t += dt;
       // Pointer events stop arriving while the magnet is held still.

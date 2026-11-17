@@ -421,6 +421,38 @@ body.field-page main:focus { outline: none; }
 .lab-trail-step a:hover { border-color: var(--teal); color: var(--teal); }
 .lab-trail-step [aria-disabled] { opacity: 0.4; }
 .is-embedded .lab-trail { display: none; }
+/* Camera presets only steer the 3D view; in the 2D diagram they did nothing. */
+.stage:has(#simulation:not([hidden])) .camera-toolbar [data-camera] { display: none; }
+
+/* Back to the section above: experiment → topic → level → start screen. */
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: 8px;
+  padding: 7px 14px 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--font-data);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+}
+.lab-trail-path a.back-button:hover { text-decoration: none; border-color: var(--teal); color: var(--teal); }
+.topic-trail .back-button { border-color: var(--hair); color: var(--chalk); background: rgba(6, 18, 29, 0.5); }
+.topic-trail-path a.back-button:hover { text-decoration: none; border-color: #5fe0dc; color: #5fe0dc; }
+.field-paths { padding-top: 22px; }
+.field-paths .paths-heading { margin-top: 30px; }
+
+/* Experiment page: readings and labels large enough to read at a glance. */
+.lab-page .metric-label { font-family: var(--font-data); font-size: 14px; font-weight: 600; }
+.lab-page .metric-value { font-family: var(--font-data); font-size: clamp(30px, 2.7vw, 42px); font-weight: 600; letter-spacing: -0.02em; }
+.lab-page .metric-value span { font-size: 0.5em; font-weight: 500; }
+.lab-page .control-label,
+.lab-page .control-label label { font-size: 15px; font-weight: 650; }
+.lab-page .lab-title-row p { font-size: 16px; }
+
 /* Offered in 3D only: jumps to the diagram where parts can be dragged. */
 .hands-on {
   display: none;

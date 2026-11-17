@@ -74,7 +74,7 @@ function label(value, color = "#a9c8d9") {
   c.strokeStyle = color;
   c.lineWidth = 3;
   c.stroke();
-  c.font = word ? "600 48px Segoe UI,sans-serif" : "italic 66px Georgia,serif";
+  c.font = word ? "700 52px Manrope,Segoe UI,sans-serif" : "italic 600 70px Georgia,serif";
   c.textAlign = "center";
   c.textBaseline = "middle";
   c.fillStyle = color;
@@ -89,7 +89,7 @@ function label(value, color = "#a9c8d9") {
       toneMapped: false,
     }),
   );
-  sprite.scale.set(word ? 1.18 : 0.64, word ? 0.472 : 0.64, 1);
+  sprite.scale.set(word ? 1.36 : 0.74, word ? 0.544 : 0.74, 1);
   sprite.userData.role = "label";
   sprite.userData.text = value;
   return sprite;
@@ -299,7 +299,8 @@ export class SceneView {
       goal.azimuth -= (e.clientX - down[0]) * 0.007;
       goal.polar = Math.max(
         0.15,
-        Math.min(Math.PI - 0.15, goal.polar + (e.clientY - down[1]) * 0.006),
+        // Dragging up lifts the view of the model up (the camera drops), and down the reverse.
+        Math.min(Math.PI - 0.15, goal.polar - (e.clientY - down[1]) * 0.006),
       );
       if (matchMedia("(prefers-reduced-motion: reduce)").matches) Object.assign(this, goal);
       else this.cameraGoal = goal;

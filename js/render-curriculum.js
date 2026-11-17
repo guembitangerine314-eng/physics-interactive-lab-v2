@@ -64,7 +64,7 @@ export function drawCurriculum(canvas, lab) {
     t = s.t;
   const text = (str, x, y, color = MUTED, size = 17, align = "left", maxWidth) => {
     c.fillStyle = color;
-    c.font = `500 ${Math.max(size,12/scale)}px Manrope,Segoe UI,sans-serif`;
+    c.font = `600 ${Math.max(size*1.15,14/scale)}px Manrope,Segoe UI,sans-serif`;
     c.textAlign = align;
     if (maxWidth) c.fillText(String(str), x, y, maxWidth);
     else c.fillText(String(str), x, y);

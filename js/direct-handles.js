@@ -127,7 +127,8 @@ export function drawHandles(canvas, handles, { active = null, hover = null, time
     const [x, y] = handles[0].at, label = "✋ " + handles[0].hint;
     c.font = "600 13px Manrope, Segoe UI, sans-serif";
     const width = c.measureText(label).width + 20, left = clamp(x - width / 2, 8, canvas.clientWidth - width - 8),
-      top = y - 58 > 8 ? y - 58 : y + 30;
+      // High enough to clear a value label sitting just above the part.
+      top = y - 92 > 8 ? y - 92 : y + 34;
     c.fillStyle = "#0c5f63";
     c.beginPath();
     c.roundRect(left, top, width, 26, 13);

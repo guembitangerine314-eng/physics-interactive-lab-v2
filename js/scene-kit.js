@@ -43,7 +43,7 @@ export function setPath(line, points) {
 function textTexture(text, color, theme = 'dark') {
   const canvas = document.createElement("canvas"),
     c = canvas.getContext("2d");
-  c.font = "600 60px Segoe UI,sans-serif";
+  c.font = "700 62px Manrope,Segoe UI,sans-serif";
   canvas.width = Math.max(
     128,
     Math.min(1900, Math.ceil(c.measureText(text).width) + 58),
@@ -58,7 +58,7 @@ function textTexture(text, color, theme = 'dark') {
     c.lineWidth = 2;
     c.stroke();
   }
-  c.font = "600 60px Segoe UI,sans-serif";
+  c.font = "700 62px Manrope,Segoe UI,sans-serif";
   c.textAlign = "center";
   c.textBaseline = "middle";
   c.fillStyle = color;
@@ -67,10 +67,12 @@ function textTexture(text, color, theme = 'dark') {
   texture.colorSpace = T.SRGBColorSpace;
   return texture;
 }
+export const LABEL_BOOST = 1.16;
 function fitLabel(sprite, texture, width, maxHeight) {
   const height = width * texture.image.height / texture.image.width;
   const fit = maxHeight ? Math.min(1, maxHeight / height) : 1;
-  sprite.scale.set(width * fit, height * fit, 1);
+  // Labels are drawn a little larger than their layout box so they read from a distance.
+  sprite.scale.set(width * fit * LABEL_BOOST, height * fit * LABEL_BOOST, 1);
 }
 export function createSceneKit(root, { labels = true } = {}) {
   const annotations = [],
