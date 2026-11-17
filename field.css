@@ -989,3 +989,12 @@ body.lab-dark #main .lab-page .controls .learning-mode-options small { color: va
   .lesson-world { grid-template-columns: 1fr; }
   .lesson-board { margin-top: 36px; gap: 20px; }
 }
+
+/* ---------- 2D diagrams on the dark page ----------
+   The diagrams are drawn as ink on pale paper. Inverting lightness and turning
+   the hue back gives the same drawing as light on graphite: lines keep their
+   colour family (teal stays teal, gold stays gold) and nothing is redrawn. */
+body.lab-dark #main .lab-page .scene-container #simulation {
+  filter: invert(1) hue-rotate(180deg) saturate(1.25) contrast(1.06);
+  background: #fff;
+}

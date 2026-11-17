@@ -121,11 +121,14 @@ export function setSceneTheme(type) {
   return KITS.indexOf(kit);
 }
 /** Structural blue-greys (boards, rods, feet) become real materials from the kit. */
-export function kitColour(color, extra = {}) {
+export function kitColour(color, extra = {}, hint = null) {
   if (extra.emissive !== undefined || extra.map || extra.transparent) return null;
   probe.set(color).getHSL(hsl);
   const { h, s, l } = hsl;
   if (h < 0.5 || h > 0.63 || s < 0.1 || s > 0.5 || l >= 0.88) return null;
+  // The wide board an apparatus stands on is always the kit's board material,
+  // so strong colours stay on small parts such as clamps and feet.
+  if (hint === "board") return kit.base;
   return l >= 0.62 ? kit.base : l >= 0.36 ? kit.frame : kit.foot;
 }
 
@@ -154,8 +157,8 @@ const RECIPES = {
   satin: () => ({ roughness: 0.38, metalness: 0.04, clearcoat: 0.55, clearcoatRoughness: 0.3, envMapIntensity: 0.85, roughnessMap: satinMap() }),
 };
 /** One material per part. Anything the caller sets explicitly wins. */
-export function realMaterial(color, extra = {}) {
-  const swap = kitColour(color, extra);
+export function realMaterial(color, extra = {}, hint = null) {
+  const swap = kitColour(color, extra, hint);
   if (swap) color = swap[0];
   const finish = swap ? swap[1] : finishFor(color, extra), recipe = RECIPES[finish]();
   for (const key of Object.keys(recipe)) if (recipe[key] === null) delete recipe[key];

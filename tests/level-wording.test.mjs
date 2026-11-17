@@ -32,3 +32,25 @@ test("level text only rewrites while IGCSE is selected", () => {
   assert.equal(levelText("Primary RMS current"), "Primary current");
   setWordingLevel(null);
 });
+
+test("each experiment keeps only the labels for what it teaches", async () => {
+  const { FOCUS_RULES } = await import("../js/level-wording.js");
+  const { SIMULATIONS } = await import("../js/simulations.js");
+  for (const id of Object.keys(FOCUS_RULES)) if (id !== "*") assert.ok(Object.hasOwn(SIMULATIONS, id), id);
+  setWordingLevel("igcse", "pendulum");
+  // The timing bench is about the period: energy and speed read-outs go.
+  assert.equal(levelText("K 0.03 J · U 0.20 J · damping 0.00 J"), "");
+  assert.equal(levelText("Speed = 0.41 m/s"), "");
+  assert.equal(levelText("L = 1.50 m · rigid massless link · +θ to the right"), "L = 1.50 m");
+  assert.equal(levelText("θ = 5.3°"), "θ = 5.3°");
+  setWordingLevel("igcse", "moments");
+  assert.equal(levelText("Angular stops · ±24°"), "");
+  assert.equal(levelText("d₁ · 0.80 m"), "d₁ · 0.80 m");
+  assert.equal(levelText("HYDRAULIC WORKBENCH"), "");
+  // Another experiment keeps its own energy labels, and A Level keeps everything.
+  setWordingLevel("igcse", "energy");
+  assert.equal(levelText("Speed = 0.41 m/s"), "Speed = 0.41 m/s");
+  setWordingLevel("alevel", "pendulum");
+  assert.equal(levelText("Speed = 0.41 m/s"), "Speed = 0.41 m/s");
+  setWordingLevel(null);
+});

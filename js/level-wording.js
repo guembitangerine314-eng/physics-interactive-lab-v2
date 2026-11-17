@@ -65,13 +65,69 @@ export const IGCSE_RULES = [
     "Photocopiers, paint sprayers and smoke-stack dust filters all use electric charge and electric fields."],
 ];
 
+/** Labels inside one experiment that are not part of what that experiment
+ * teaches: side quantities (energy on the pendulum timing bench), model
+ * caveats ("ideal", "schematic", "fixed scale") and workshop-style banners.
+ * [pattern, replacement]; null removes the label. Applied at IGCSE only. */
+const DROP = null;
+export const FOCUS_RULES = {
+  "*": [
+    [/^[A-Z’' &·.\-]*\b(WORKBENCH|BENCH|LAB|STUDIO|DESK|MACHINE|OBSERVATORY|GAUGE|ORRERY|TRACK|CHAMBER)$/, DROP],
+  ],
+  hydraulics: [[/^W in = W out = .*$/, DROP], [/^Pressed slowly and steadily$/, DROP]],
+  hooke: [[/^Elastic energy .*$/, DROP], [/^equivalent stiffness$/, DROP], [/^Extension shown on a compressed scale$/, DROP]],
+  sensors: [[/^Ideal threshold indicator$/, DROP], [/^Divider (I =|current) .*$/, DROP], [/^\S+ V reference$/, DROP]],
+  radiation: [[/^\S+ px = rβ = .*$/, DROP], [/^BETA · INDEPENDENT SCALE$/, DROP], [/^Main view: .*$/, DROP], [/^α radius .*$/, DROP], [/^β speed .*$/, DROP], [/^γ travels at c$/, DROP]],
+  rectifier: [[/^Output pulses .*$/, DROP], [/^Zero crossing$/, DROP], [/^Half-wave · ideal diode$/, "Half-wave rectifier"]],
+  filament: [[/^Energy residual .*$/, DROP], [/^Glow colour illustrative.*$/, DROP], [/^P in .* · P out .*$/, DROP], [/^Stored thermal energy$/, DROP],
+    [/^Energy to surroundings$/, DROP], [/^Electrical input .*$/, DROP], [/^Glass shown as a cutaway$/, DROP]],
+  cooling: [[/^τ = .*$/, DROP], [/^Initial excess energy = released \+ remaining$/, DROP], [/^Released:? .*$/, DROP], [/^Remaining( excess energy)?:? .*$/, DROP],
+    [/^Cooling slows as ΔT shrinks$/, "Cooling slows as it nears room temperature"]],
+  measurement: [[/^uT = .*$/, DROP], [/^± \S+ m resolution$/, DROP]],
+  motion: [[/^Calculated \S+ Hz position marks$/, DROP], [/^Fixed eight-second displacement scale.*$/, DROP], [/^Motion on a fixed displacement scale$/, DROP],
+    [/^Gold v · coral applied · blue drag · purple (net|resultant)$/, "Gold: velocity · coral: push · blue: air resistance · purple: resultant force"],
+    [/^Net = (\S+ N) · a = (.*)$/, "Resultant force = $1 · a = $2"]],
+  vectors: [[/^R[ᵧₓ] = .*$/, DROP]],
+  moments: [[/^(Angular stops ·|Beam stops at) .*$/, DROP]],
+  buoyancy: [[/^Support force$/, DROP], [/^Actual vertical motion · upward is positive$/, DROP], [/^Release from rest$/, DROP]],
+  gases: [[/^Gold particle · .*$/, DROP], [/^Particles enlarged · motion slowed$/, DROP], [/^Pressure is calculated independently of these dots$/, DROP]],
+  expansion: [[/^Overlay exaggerates ΔL\..*$/, DROP], [/^Extension overlay magnified ×\S+$/, DROP]],
+  calorimetry: [[/^Phase volumes (schematic|illustrative.*)$/, DROP], [/^Water at \S+ atm(osphere)? · .*$/, DROP]],
+  heat: [[/^Reservoir temperatures held constant$/, DROP]],
+  wavefronts: [[/^Schematic ripple tank$/, "Ripple tank"]],
+  lenses: [[/^Paraxial thin-lens principal rays$/, DROP]],
+  dispersion: [[/^In material\s+\S+ nm$/, DROP], [/^λ in material\s+\S+ nm$/, DROP], [/^Air → material · no prism or second face$/, DROP],
+    [/^Closer fronts · lower speed · same frequency$/, "Closer wavefronts: light is slower in the material"],
+    [/^Frequency stays the same across the boundary$/, DROP], [/^ONE INTERFACE · FOLLOW A WAVEFRONT$/, "FOLLOW ONE COLOUR OF LIGHT"]],
+  spectrum: [[/^Electric field · transverse$/, DROP], [/^Logarithmic wavelength ruler$/, DROP],
+    [/^Field sketch · all vacuum EM waves travel at c$/, "All electromagnetic waves travel at the same speed in a vacuum"]],
+  sound: [[/^Source p = .*$/, DROP], [/^Relative pressure$/, DROP]],
+  devices: [[/^\S+ V forward-drop model$/, DROP], [/^Reverse breakdown is omitted$/, DROP], [/^Diode (drop =|voltage) .*$/, DROP],
+    [/^Forward biased · current flows$/, "Diode conducts · current flows"]],
+  magnetism: [[/^B = .* mT$/, DROP], [/^Drawn turns simplified$/, DROP], [/^(\S+ A) · reverse I to reverse B$/, "$1 · reverse the current to reverse the field"]],
+  charged: [[/^r = \S+ m$/, DROP], [/^\|F\| = .*$/, DROP], [/^K = .* \(constant\)$/, DROP]],
+  atom: [[/^No classical electron orbits implied$/, DROP], [/^Nucleus \/ atom sizes enlarged independently$/, "Not to scale"]],
+  radioactivity: [[/^Each nucleus has its own seeded event time$/, "Each nucleus decays at a random time"], [/^ensemble expectation$/, "expected"],
+    [/^Dots = one random sample\. Curve = mathematical expectation\.$/, "Dots: one random sample · Curve: the expected trend"]],
+  earthmoon: [[/^Sizes \/ distances \/ phase speed illustrative$/, "Not to scale"]],
+  solarsystem: [[/^Log radius view · circular reference orbits$/, "Not to scale"]],
+  stars: [[/^\S+ M☉ · lower-mass branch$/, DROP], [/^λpeak = .*$/, DROP], [/^Qualitative stages$/, DROP]],
+  pendulum: [[/^KE .* · GPE .*$/, DROP], [/^Speed = .*$/, DROP], [/^Gold arrow: velocity$/, DROP]],
+  collisions: [[/^K = .* · transferred internally: .*$/, DROP], [/^Fixed lab ruler · positive x to the right$/, DROP], [/^Σp = (.*)$/, "Total momentum = $1"]],
+  waves: [[/^\S+ \+ \(\S+\) = \S+ m$/, DROP]],
+};
+let focus = null;
+
 const cache = new Map();
 /** The IGCSE form of a label, or null when the label should not appear. */
 export function igcseWording(text) {
   if (typeof text !== "string" || !text) return text;
   if (cache.has(text)) return cache.get(text);
   let out = text;
-  for (const [pattern, replacement] of IGCSE_RULES) {
+  // Experiment rules run before and after the level rules, so they can be
+  // written against either the original label or its IGCSE wording.
+  const own = FOCUS_RULES[focus] ?? [];
+  for (const [pattern, replacement] of [...own, ...FOCUS_RULES["*"], ...IGCSE_RULES, ...own]) {
     pattern.lastIndex = 0;
     if (!pattern.test(out)) continue;
     pattern.lastIndex = 0;
@@ -89,8 +145,10 @@ export function igcseWording(text) {
 let level = null;
 export const wordingLevel = () => level;
 /** Called when an experiment opens or its level changes. */
-export function setWordingLevel(mode) {
+export function setWordingLevel(mode, experiment = null) {
   level = mode === "igcse" ? "igcse" : null;
+  if (focus !== experiment) cache.clear();
+  focus = experiment;
 }
 /** Text as it should be shown at the current level ("" when it is dropped). */
 export function levelText(text) {

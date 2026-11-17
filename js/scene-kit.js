@@ -1,4 +1,5 @@
 /** Reusable 3D apparatus. Display transforms never modify physical state. */
+import { paintLabelPlate, LABEL_FONT } from "./scene-look.js";
 import { realMaterial } from "./scene-materials.js";
 import * as T from "../vendor/three.module.min.js";
 import { roundedBox } from "./scene-finish.js";
@@ -44,22 +45,14 @@ export function setPath(line, points) {
 function textTexture(text, color, theme = 'dark') {
   const canvas = document.createElement("canvas"),
     c = canvas.getContext("2d");
-  c.font = "700 62px Manrope,Segoe UI,sans-serif";
+  c.font = LABEL_FONT;
   canvas.width = Math.max(
     128,
     Math.min(1900, Math.ceil(c.measureText(text).width) + 58),
   );
   canvas.height = 110;
-  if (theme !== 'ink') {
-    c.fillStyle = theme === 'paper' ? 'rgba(250,253,255,.96)' : 'rgba(7,23,36,.88)';
-    c.beginPath();
-    c.roundRect(3, 3, canvas.width - 6, 104, 16);
-    c.fill();
-    c.strokeStyle = theme === 'paper' ? 'rgba(77,111,137,.25)' : 'rgba(150,206,222,.30)';
-    c.lineWidth = 2;
-    c.stroke();
-  }
-  c.font = "700 62px Manrope,Segoe UI,sans-serif";
+  paintLabelPlate(c, canvas.width, canvas.height, color, theme);
+  c.font = LABEL_FONT;
   c.textAlign = "center";
   c.textBaseline = "middle";
   c.fillStyle = color;
@@ -68,7 +61,7 @@ function textTexture(text, color, theme = 'dark') {
   texture.colorSpace = T.SRGBColorSpace;
   return texture;
 }
-export const LABEL_BOOST = 1.16;
+export const LABEL_BOOST = 1;
 function fitLabel(sprite, texture, width, maxHeight) {
   const height = width * texture.image.height / texture.image.width;
   const fit = maxHeight ? Math.min(1, maxHeight / height) : 1;
@@ -80,7 +73,7 @@ export function createSceneKit(root, { labels = true } = {}) {
     indicators = [],
     objects = [],
     shared = new Map();
-  const material = (color, extra = {}) => realMaterial(color, extra);
+  const material = (color, extra = {}, hint = null) => realMaterial(color, extra, hint);
   const add = (mesh, pos = [0, 0, 0], role = "apparatus") => {
     mesh.position.set(...pos);
     mesh.userData.role = role;
@@ -92,17 +85,19 @@ export function createSceneKit(root, { labels = true } = {}) {
     if (!shared.has(color)) shared.set(color, material(color));
     return shared.get(color);
   };
-  const mesh = (geometry, color, pos, extra = {}) => {
+  const mesh = (geometry, color, pos, extra = {}, hint = null) => {
     const o = new T.Mesh(
       geometry,
-      Object.keys(extra).length ? material(color, extra) : mat(color),
+      hint || Object.keys(extra).length ? material(color, extra, hint) : mat(color),
     );
     o.castShadow = true;
     o.receiveShadow = true;
     return add(o, pos);
   };
   const box = (w, h, d, color, pos, extra) =>
-    mesh(Math.min(w, h, d) >= 0.075 ? roundedBox(w, h, d) : new T.BoxGeometry(w, h, d), color, pos, extra);
+    mesh(Math.min(w, h, d) >= 0.075 ? roundedBox(w, h, d) : new T.BoxGeometry(w, h, d), color, pos, extra,
+      // Wide and flat: the board the apparatus stands on.
+      w * d >= 3 && h <= 0.3 ? "board" : null);
   const ball = (r, color, pos, extra) =>
     mesh(new T.SphereGeometry(r, 40, 28), color, pos, extra);
   const cylinder = (r, h, color, pos, extra) =>

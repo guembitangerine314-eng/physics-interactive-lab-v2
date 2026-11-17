@@ -815,7 +815,7 @@ export const LEARNING_PATHS = {
       "Use Fleming’s right-hand rule for a generator",
       "Recognise induced emf from changing linkage|Explain why the induced current reverses|Use motion and field to predict current direction",
       "Pause at 90° and open the circuit. Compare the voltage and current before and after.",
-      "A changing magnetic linkage induces an emf",
+      "A coil turning in a magnetic field has an e.m.f. induced in it",
       "Can a stationary coil in an unchanging field generate an induction emf?",
       "No. The magnetic field through the coil is not changing, so no e.m.f. is induced.",
       "loadCurrent-4,emf-1",

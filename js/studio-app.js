@@ -430,7 +430,7 @@ function labPage(type, query) {
     ),
     syllabusCycle = query.get("cycle") === "next" ? "next" : "current";
   // Labels drawn from here on (2D, 3D, graphs) use the wording of this level.
-  setWordingLevel(studyMode);
+  setWordingLevel(studyMode, type);
   let params, invalid = false;
   const requested = {};
   for (const key of Object.keys(d.defaults))

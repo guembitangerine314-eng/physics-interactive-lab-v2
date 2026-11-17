@@ -1,5 +1,7 @@
 import { createBudget } from "./render-budget.js";
-import { realMaterial, setSceneTheme, benchTexture, benchFade } from "./scene-materials.js";
+import { realMaterial, setSceneTheme } from "./scene-materials.js";
+import { studioBackdropTexture, benchMaterial, lightPool, addGlow, paintLabelPlate } from "./scene-look.js";
+import { levelText } from "./level-wording.js";
 import { apparatusBounds, frameApparatus, frameOrbit, diagramLabelVisible } from './scene-framing.js';
 import { sceneLabelAllowed } from './study-policy.js';
 import { wavelengthRGB } from './diagram-theme.js';
@@ -29,7 +31,7 @@ import {
   interferenceAt,
 } from "./physics-extra.js";
 /** Camera distance factor: below 1 brings every apparatus closer at the start. */
-export const SETUP_ZOOM = 0.9;
+export const SETUP_ZOOM = 1;
 const CYAN = 0x63efda,
   GOLD = 0xffc778,
   BLUE = 0x7baeff;
@@ -64,14 +66,11 @@ function label(value, color = "#a9c8d9") {
   canvas.height = 128;
   canvas.width = word ? 320 : 128;
   const c = canvas.getContext("2d");
-  c.beginPath();
-  c.roundRect(20, 20, canvas.width-40, 88, 24);
-  c.fillStyle = "#0a2035";
-  c.fill();
-  c.strokeStyle = color;
-  c.lineWidth = 3;
-  c.stroke();
-  c.font = word ? "700 52px Manrope,Segoe UI,sans-serif" : "italic 600 70px Georgia,serif";
+  c.save();
+  c.translate(17, 17);
+  paintLabelPlate(c, canvas.width - 34, 94, color);
+  c.restore();
+  c.font = word ? "650 50px Manrope,Segoe UI,sans-serif" : "italic 600 66px Georgia,serif";
   c.textAlign = "center";
   c.textBaseline = "middle";
   c.fillStyle = color;
@@ -86,7 +85,7 @@ function label(value, color = "#a9c8d9") {
       toneMapped: false,
     }),
   );
-  sprite.scale.set(word ? 1.36 : 0.74, word ? 0.544 : 0.74, 1);
+  sprite.scale.set(word ? 1.2 : 0.66, word ? 0.48 : 0.66, 1);
   sprite.userData.role = "label";
   sprite.userData.text = value;
   return sprite;
@@ -160,16 +159,10 @@ export class SceneView {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = T.PCFSoftShadowMap;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.12;
     this.scene = new T.Scene();
     // A quiet studio backdrop adds depth without adding anything to the model.
-    const backdrop=document.createElement('canvas');backdrop.width=backdrop.height=512;
-    const backdropContext=backdrop.getContext('2d'),backdropPaint=backdropContext.createRadialGradient(256,180,0,256,230,400);
-    backdropPaint.addColorStop(0,'#4a4640');
-    backdropPaint.addColorStop(.47,'#24262b');
-    backdropPaint.addColorStop(1,'#0b0c0f');
-    backdropContext.fillStyle=backdropPaint;backdropContext.fillRect(0,0,512,512);
-    this.studioBackdrop=new T.CanvasTexture(backdrop);this.studioBackdrop.colorSpace=T.SRGBColorSpace;
+    this.studioBackdrop = studioBackdropTexture();
     this.scene.fog = new T.FogExp2(0x080f1b, 0.018);
     this.environmentTarget = studioEnvironment(this.renderer);
     this.scene.environment = this.environmentTarget.texture;
@@ -207,21 +200,9 @@ export class SceneView {
     this.bindCamera();
   }
   addEnvironment() {
-    // An oak bench top under every apparatus. It fades out in a soft circle,
+    // A graphite bench under every apparatus. It fades out in a soft circle,
     // so there is no table edge or horizon line cutting across the model.
-    const floor = new T.Mesh(
-      new T.CircleGeometry(30, 72),
-      new T.MeshStandardMaterial({
-        color: 0x86705c,
-        map: benchTexture(),
-        alphaMap: benchFade(),
-        transparent: true,
-        depthWrite: false,
-        roughness: 0.5,
-        metalness: 0,
-        envMapIntensity: 0.55,
-      }),
-    );
+    const floor = new T.Mesh(new T.CircleGeometry(30, 72), benchMaterial());
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.82;
     floor.receiveShadow = true;
@@ -229,6 +210,8 @@ export class SceneView {
     floor.renderOrder = -1;
     this.scene.add(floor);
     this.floor = floor;
+    this.pool = lightPool();
+    this.scene.add(this.pool);
     const grid = studioGrid();
     grid.position.y = -0.8;
     grid.material.transparent = true;
@@ -270,6 +253,7 @@ export class SceneView {
     this.handlers.pointerdown = (e) => {
       if (e.button !== 0) return;
       this.cameraGoal = null;
+      this.introGoal = null;
       const handle = this.curriculum?.interaction?.pick(
         pointer(e),
         this.camera,
@@ -439,6 +423,32 @@ export class SceneView {
     this.objects = {};
   }
   build(type, p, studyMode) {
+    const firstLook = this.type !== type;
+    this.buildModel(type, p, studyMode);
+    this.finishLook(firstLook);
+  }
+  /** After any model is built: halos on lit parts, labels of this level only,
+   * and a short camera move the first time an experiment opens. */
+  finishLook(firstLook) {
+    addGlow(this.root);
+    this.labelNodes = [];
+    this.root.traverse((node) => {
+      if (node.userData.role === "label" && node.isSprite) this.labelNodes.push(node);
+    });
+    this.syncLabels();
+    this.introPending = firstLook && typeof matchMedia === "function" && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  /** A label whose wording is not part of this level is taken off the camera's
+   * layer. Its own show/hide logic is left alone. */
+  syncLabels() {
+    for (const node of this.labelNodes ?? []) {
+      const text = node.userData.text;
+      if (node.userData.checkedText === text) continue;
+      node.userData.checkedText = text;
+      node.layers.set(typeof text === "string" && text && levelText(text) === "" ? 1 : 0);
+    }
+  }
+  buildModel(type, p, studyMode) {
     setSceneTheme(type);
     const newModel = this.type !== type;
     this.clear();
@@ -450,16 +460,16 @@ export class SceneView {
     this.key = JSON.stringify(p);
     const space = ["gravity", "earthmoon", "solarsystem", "stars", "binary", "threebody", "universe"].includes(type);
     this.scene.background = space ? (this.orbitBackdrop ??= makeOrbitBackdrop()) : this.studioBackdrop;
-    this.scene.fog.color.set(space?0x080f1b:0x10283c);
+    this.scene.fog.color.set(space?0x080f1b:0x07080b);
     // Orbital lighting is illustrative, not a simulated day/night cycle.
-    this.ambient.intensity = { gravity: 0.36, earthmoon: 0.38, solarsystem: 0.65 }[type] ?? 1.25;
-    this.keyLight.intensity = type === "solarsystem" ? 0 : 3.2;
+    this.ambient.intensity = { gravity: 0.36, earthmoon: 0.38, solarsystem: 0.65 }[type] ?? 0.62;
+    this.keyLight.intensity = type === "solarsystem" ? 0 : 3.5;
     this.keyLight.position.set(-4, 9, type === "gravity" ? 3 : 6);
     if (type === "gravity") this.keyLight.position.set(-9, 7, 2);
     if (type === "earthmoon") this.keyLight.position.set(-10, 0, 0);
-    this.rimLight.intensity = space ? 0 : 26;
-    this.fillLight.intensity = type === 'gravity' ? 0.45 : space ? 0.05 : 1.15;
-    this.scene.environmentIntensity = type === 'gravity' ? 0.3 : space ? 0.08 : 0.9;
+    this.rimLight.intensity = space ? 0 : 34;
+    this.fillLight.intensity = type === 'gravity' ? 0.45 : space ? 0.05 : 0.8;
+    this.scene.environmentIntensity = type === 'gravity' ? 0.3 : space ? 0.08 : 1.1;
     this.stars.visible = space;
     const r = this.root,
       o = this.objects;
@@ -471,7 +481,9 @@ export class SceneView {
     this.floor.visible = !space && type !== "vectors";
     this.grid.visible = !space && type !== "vectors";
     this.grid.position.y = type === "gravity" ? 1 : this.grid.position.y;
-    this.grid.material.opacity = 0.23;
+    this.grid.material.opacity = 0.16;
+    this.pool.visible = this.floor.visible;
+    this.pool.position.y = this.floor.position.y + 0.012;
     const add = (name, mesh, pos) => {
       o[name] = mesh;
       if (pos) mesh.position.set(...pos);
@@ -936,6 +948,21 @@ export class SceneView {
       this.homeRadius=fit.radius;this.homePolar=fit.polar;this.homeAzimuth=fit.azimuth;
       this.radius=fit.radius*(Number.isFinite(zoom)?zoom:1);
       if (this.orbitNewModel) {this.home();this.orbitNewModel=false;}
+    }
+    this.syncLabels();
+    if (this.introPending && Number.isFinite(this.homeRadius) && !this.pendingFraming) {
+      // Arrive with a slow push-in and a slight turn, then settle on the home view.
+      this.introPending = false;
+      const goal = { azimuth: this.azimuth, polar: this.polar, radius: this.radius };
+      this.radius *= 1.22;
+      this.azimuth -= 0.2;
+      this.polar = Math.max(0.3, this.polar - 0.07);
+      this.introGoal = goal;
+      this.introStart = performance.now();
+    }
+    if (this.introGoal) {
+      if (this.cameraGoal || performance.now() - this.introStart > 2600) this.introGoal = null;
+      else for (const field of ["azimuth", "polar", "radius"]) this[field] += (this.introGoal[field] - this[field]) * 0.045;
     }
     // The apparatus opens large; zooming out is one scroll away.
     const cameraRadius =
