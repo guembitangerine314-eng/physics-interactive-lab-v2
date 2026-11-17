@@ -618,7 +618,8 @@ export function drawCurriculum(canvas, lab) {
           p.focal * 2,
           Math.min(Math.abs(q.image || 0), 2),
         ),
-        sc = 310 / max,
+        // While the object is being dragged the scale is held, so it stays under the pointer.
+        sc = lab.heldScale ?? 310 / max,
         cx = 420,
         y = 245,
         u = p.object * sc,

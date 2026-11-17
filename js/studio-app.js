@@ -31,6 +31,7 @@ import { renderSyllabus } from "./syllabus.js";
 import { experimentLink } from "./integration.js";
 import { TOPICS, LEVELS, levelByKey, levelTopics, topicBySlug, topicExperiments, topicExtensions, enrichmentExperiments, topicNeighbours, adjacentTopics, labTopic, topicOf, searchExperiments } from "./topic-map.js";
 import { createBackdrop } from "./field-backdrop.js";
+import { hasHandles, handlesFor, handleAt, snapToControl, drawHandles } from "./direct-handles.js";
 import {
   createOrbit,
   stepOrbit,
@@ -204,6 +205,7 @@ function home() {
     $("#caption-scene").textContent = TOPICS[index].scene;
     $(".field-caption").style.setProperty("--accent", TOPICS[index].accent);
   };
+  backdrop.calm(false);
   backdrop.onChange(caption);
   backdrop.show(backdrop.current, { instant: true });
   caption(backdrop.current);
@@ -258,6 +260,7 @@ function pathsPage(query) {
       ? `<li><a href="#/${t.slug}" data-scene="${t.sceneIndex}" style="--accent:${t.accent}">${inner}</a></li>`
       : `<li><span class="path-empty">${inner}</span></li>`;
   };
+  backdrop.calm(true);
   backdrop.onChange(null);
   backdrop.cycle(true);
   backdrop.show(backdrop.current, { instant: true });
@@ -285,6 +288,7 @@ function topicPage(topic) {
     level = levelByKey(topic.level), { previous, next } = adjacentTopics(topic),
     sep = '<i aria-hidden="true">›</i>',
     step = (t, label) => t ? `<a href="#/${t.slug}" title="${esc(t.name)}">${label}</a>` : "";
+  backdrop.calm(true);
   backdrop.onChange(null);
   backdrop.cycle(false);
   backdrop.show(topic.sceneIndex);
@@ -466,9 +470,11 @@ function labPage(type, query) {
     graphDirty: true,
     view: ["2d", "3d"].includes(query.get("view"))
       ? query.get("view")
-      : d.curriculum
-        ? "3d"
-        : stored("physics-view", "3d"),
+      : hasHandles(type)
+        ? "2d" // hands-on diagrams open ready to drag; 3D stays one click away
+        : d.curriculum
+          ? "3d"
+          : stored("physics-view", "3d"),
     notebook: stored(`physics-notebook-${type}`, []),
   };
   if (!Array.isArray(lab.notebook)) lab.notebook = [];
@@ -507,6 +513,7 @@ function labPage(type, query) {
   )
     $("#vectors").closest("label").hidden = true;
   bindControls();
+  bindHandles();
   $(".lab-page").dataset.model = type;
   const mappedLessons = relatedLessons(type);
   if (mappedLessons.length)
@@ -731,6 +738,79 @@ function arrangeOrbitWorkbench() {
   notebookRow.className = "orbit-notebook-row";
   notebookRow.append($(".insight-strip"), $(".notebook"));
   analysis.after(notebookRow);
+}
+/** Grab-and-drag on the 2D diagram: the same parameters as the sliders. */
+let handleState = { active: null, hover: null, used: false };
+function bindHandles() {
+  const canvas = $("#simulation"), boundLab = lab;
+  handleState = { active: null, hover: null, used: false, moved: false, suppressClick: false };
+  if (!hasHandles(lab.type)) return;
+  canvas.style.touchAction = "none";
+  $(".stage-top .running-status")?.insertAdjacentHTML("afterend",
+    '<button type="button" class="hands-on" id="hands-on">✋ Hands-on: drag it yourself</button>');
+  $("#hands-on").onclick = () => $('[data-view="2d"]')?.click();
+  const local = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return [e.clientX - r.left, e.clientY - r.top];
+    },
+    current = () => handlesFor(lab, canvas.clientWidth, canvas.clientHeight);
+  canvas.onpointerdown = (e) => {
+    if (lab !== boundLab || lab.view !== "2d") return;
+    const handle = handleAt(current(), ...local(e));
+    if (!handle) return;
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    Object.assign(handleState, { active: handle.id, wasRunning: lab.running, moved: false });
+    handleState.held = Object.keys(handle.hold ?? {});
+    Object.assign(lab, handle.hold);
+    // Hold the model still while it is being set up; it runs again on release.
+    lab.running = false;
+    syncPlay();
+  };
+  canvas.onpointermove = (e) => {
+    if (lab !== boundLab || lab.view !== "2d") return;
+    const position = local(e);
+    if (!handleState.active) {
+      const handle = handleAt(current(), ...position);
+      handleState.hover = handle?.id ?? null;
+      canvas.style.cursor = handle ? handle.cursor : "";
+      return;
+    }
+    const handle = current().find((h) => h.id === handleState.active);
+    if (!handle) return;
+    const next = { ...lab.params };
+    for (const [key, value] of Object.entries(handle.drag(...position))) {
+      const control = lab.definition.controls.find((c) => c.key === key);
+      if (control && Number.isFinite(value))
+        next[key] = snapToControl(value, studyControl(lab.type, lab.studyMode, control));
+    }
+    if (Object.keys(next).every((key) => next[key] === lab.params[key])) return;
+    try {
+      reset(next);
+      lab.running = false;
+      syncPlay();
+      $("#control-error").textContent = "";
+    } catch (error) {
+      $("#control-error").textContent = error.message;
+    }
+    syncInputs();
+    handleState.moved = handleState.used = true;
+  };
+  const release = () => {
+    if (!handleState.active) return;
+    handleState.active = null;
+    if (lab === boundLab) {
+      for (const key of handleState.held ?? []) delete lab[key];
+      lab.running = handleState.wasRunning;
+      syncPlay();
+    }
+    if (handleState.moved) {
+      handleState.suppressClick = true;
+      setTimeout(() => (handleState.suppressClick = false), 0);
+    }
+  };
+  canvas.onpointerup = release;
+  canvas.onpointercancel = release;
 }
 function syncInputs() {
   for (const raw of lab.definition.controls) {
@@ -1109,7 +1189,7 @@ function bindControls() {
   $("#export").onclick = exportData;
   $("#record").onclick = recordReading;
   $("#simulation").onclick = (e) => {
-    if (lab.type !== "fields") return;
+    if (lab.type !== "fields" || handleState.suppressClick) return;
     const r = e.currentTarget.getBoundingClientRect(),
       sc = Math.min((r.width - 65) / 10, (r.height - 75) / 7);
     const probeX = Math.max(
@@ -1913,7 +1993,15 @@ function frame(now) {
           }
         : lab;
     if (lab.view === "3d" && view) view.update(displayLab);
-    else if (lab.view === "2d") draw2D($("#simulation"), displayLab);
+    else if (lab.view === "2d") {
+      const canvas = $("#simulation");
+      draw2D(canvas, displayLab);
+      if (hasHandles(lab.type)) {
+        const handles = handlesFor(lab, canvas.clientWidth, canvas.clientHeight);
+        handles.prompt = !handleState.used;
+        drawHandles(canvas, handles, { active: handleState.active, hover: handleState.hover, time: now / 1000, still: reduced() });
+      }
+    }
     presentationStudio?.render?.(displayLab);
     if (now - lab.lastUI > 125) {
       updateReadouts();

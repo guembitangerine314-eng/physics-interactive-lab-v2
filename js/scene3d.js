@@ -1,3 +1,4 @@
+import { createBudget } from "./render-budget.js";
 import { apparatusBounds, frameApparatus, frameOrbit, diagramLabelVisible } from './scene-framing.js';
 import { sceneLabelAllowed } from './study-policy.js';
 import { wavelengthRGB } from './diagram-theme.js';
@@ -154,7 +155,10 @@ export class SceneView {
       alpha: false,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    // Start no higher than 1.5× and step down if frames arrive slowly: a 2×
+    // surface with antialiasing is too much for integrated graphics.
+    this.budget = createBudget({ start: Math.min(devicePixelRatio || 1, 1.5), floor: 1, slowMs: 27, window: 50 });
+    this.renderer.setPixelRatio(this.budget.ratio);
     this.renderer.setClearColor(0x080f1b);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = T.PCFSoftShadowMap;
@@ -184,7 +188,7 @@ export class SceneView {
     key.position.set(-4, 9, 6);
     this.keyLight = key;
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.set(1024, 1024);
     key.shadow.normalBias = 0.025;
     key.shadow.bias = -0.00015;
     key.shadow.radius = 3;
@@ -917,6 +921,10 @@ export class SceneView {
     this.camera.lookAt(this.target);
     this.grid.material.uniforms.opacity.value = this.grid.material.opacity;
     this.renderer.render(this.scene, this.camera);
+    if (this.budget?.frame(performance.now())) {
+      this.renderer.setPixelRatio(this.budget.ratio);
+      this.w = 0; // resize the drawing buffer on the next frame
+    }
     if (!this.firstFrame) {
       this.firstFrame = true;
       this.canvas.setAttribute("aria-busy", "false");

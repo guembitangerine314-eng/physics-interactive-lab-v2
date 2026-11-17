@@ -62,13 +62,19 @@ h2 {
   pointer-events: none;
   display: none;
 }
-body.field-page {
-  color: var(--chalk);
+body.field-page { color: var(--chalk); background: var(--field); }
+/* The gradient and dot grid sit on their own fixed layer, painted once, so
+   neither scrolling nor the animated canvas makes the browser repaint them. */
+body.field-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background:
     radial-gradient(1100px 680px at 70% 40%, #123049 0%, transparent 64%),
     radial-gradient(circle, rgba(140, 180, 205, 0.1) 1px, transparent 1.5px) 0 0 / 34px 34px,
     var(--field);
-  background-attachment: fixed;
 }
 body.field-page #backdrop { display: block; }
 /* Short pages: keep the dark field below the footer instead of the light page colour. */
@@ -80,9 +86,8 @@ body.field-page .site-header,
 body.field-page main,
 body.field-page .site-footer { position: relative; z-index: 1; }
 body.field-page .site-header {
-  background: rgba(6, 18, 29, 0.55);
+  background: rgba(6, 18, 29, 0.82);
   border-bottom-color: var(--hair);
-  backdrop-filter: blur(6px);
 }
 body.field-page .site-footer {
   margin-top: 0;
@@ -416,6 +421,22 @@ body.field-page main:focus { outline: none; }
 .lab-trail-step a:hover { border-color: var(--teal); color: var(--teal); }
 .lab-trail-step [aria-disabled] { opacity: 0.4; }
 .is-embedded .lab-trail { display: none; }
+/* Offered in 3D only: jumps to the diagram where parts can be dragged. */
+.hands-on {
+  display: none;
+  align-items: center;
+  margin-left: 14px;
+  padding: 7px 13px;
+  border: 1px solid #3fb7b0;
+  border-radius: 999px;
+  font-family: var(--font-data);
+  font-size: 13px;
+  font-weight: 600;
+  color: #c9fbf5;
+  background: rgba(63, 183, 176, 0.16);
+}
+.hands-on:hover { background: rgba(63, 183, 176, 0.3); }
+.stage:has(#simulation[hidden]) .hands-on { display: inline-flex; }
 .library-page { padding-top: 26px; }
 .library-page + .page-width .catalogue { margin-top: 18px; }
 

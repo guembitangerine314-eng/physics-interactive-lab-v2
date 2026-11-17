@@ -3,6 +3,8 @@
  * plain canvas 2D, no blur filters, capped pixel ratio and frame rate, and the
  * loop stops whenever the page is hidden or the backdrop is not on screen. */
 
+import { createBudget, ratioForPixels } from "./render-budget.js";
+
 const TAU = Math.PI * 2;
 const CHALK = "232,241,246";
 
@@ -22,7 +24,7 @@ export function seeded(i, k = 0) {
 export function sceneFrame(w, h) {
   const wide = w >= 900;
   return {
-    w, h, wide,
+    w, h, wide, ratio: 1,
     cx: wide ? w * 0.68 : w * 0.5,
     cy: wide ? h * 0.43 : h * 0.4,
     s: Math.max(120, Math.min(wide ? w * 0.44 : w * 0.8, h * 0.6)),
@@ -72,6 +74,17 @@ function dot(ctx, x, y, r, color) {
   ctx.arc(x, y, r, 0, TAU);
   ctx.fillStyle = color;
   ctx.fill();
+}
+/** A layer drawn once and reused every frame (static stars, field lines). */
+function layer(cache, f, draw) {
+  if (cache.layer && cache.w === f.w && cache.h === f.h && cache.ratio === f.ratio) return cache.layer;
+  const c = cache.layer || document.createElement("canvas"), g = c.getContext("2d");
+  c.width = Math.round(f.w * f.ratio);
+  c.height = Math.round(f.h * f.ratio);
+  g.setTransform(f.ratio, 0, 0, f.ratio, 0, 0);
+  draw(g);
+  Object.assign(cache, { layer: c, w: f.w, h: f.h, ratio: f.ratio });
+  return c;
 }
 const chalk = (a) => `rgba(${CHALK},${a})`;
 
@@ -148,25 +161,35 @@ const SCENES = [
     ctx.beginPath();
     ctx.roundRect(x0, y0, bw, bh, 10);
     ctx.stroke();
-    ctx.lineCap = "round";
-    for (let i = 0; i < 64; i++) {
+    // Group the particles by colour so each colour is one path, not 64.
+    const groups = { [c]: [], "#ffd9a8": [], "#8fd0ff": [] };
+    for (let i = 0; i < 56; i++) {
       const speed = 0.25 + seeded(i, 1) * 0.75, dir = seeded(i, 2) * TAU,
         vx = Math.cos(dir) * speed * f.s * 0.5, vy = Math.sin(dir) * speed * f.s * 0.5,
         pos = (time) => [
           x0 + pad + bounce(seeded(i, 3) * bw + vx * time, bw - 2 * pad),
           y0 + pad + bounce(seeded(i, 4) * bh + vy * time, bh - 2 * pad),
-        ],
-        [x, y] = pos(t), [ox, oy] = pos(t - 0.07),
-        color = speed > 0.7 ? c : speed > 0.45 ? "#ffd9a8" : "#8fd0ff";
-      ctx.strokeStyle = color;
-      ctx.globalAlpha = base * (0.4);
-      ctx.lineWidth = 1.5;
+        ];
+      groups[speed > 0.7 ? c : speed > 0.45 ? "#ffd9a8" : "#8fd0ff"].push([...pos(t), ...pos(t - 0.07), 2 + speed * 1.6]);
+    }
+    ctx.lineCap = "round";
+    ctx.lineWidth = 1.5;
+    for (const [color, list] of Object.entries(groups)) {
+      ctx.strokeStyle = ctx.fillStyle = color;
+      ctx.globalAlpha = base * 0.4;
       ctx.beginPath();
-      ctx.moveTo(ox, oy);
-      ctx.lineTo(x, y);
+      for (const [x, y, ox, oy] of list) {
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(x, y);
+      }
       ctx.stroke();
       ctx.globalAlpha = base;
-      dot(ctx, x, y, 2 + speed * 1.6, color);
+      ctx.beginPath();
+      for (const [x, y, , , r] of list) {
+        ctx.moveTo(x + r, y);
+        ctx.arc(x, y, r, 0, TAU);
+      }
+      ctx.fill();
     }
     // One large speck jostled by the small ones: Brownian motion.
     const sx = f.cx + f.s * 0.2 * (Math.sin(t * 0.7) * 0.6 + Math.sin(t * 2.3 + 1) * 0.25 + Math.sin(t * 5.1) * 0.08),
@@ -177,7 +200,7 @@ const SCENES = [
 
   function waves(ctx, f, t, c) {
     const base = ctx.globalAlpha;
-    const wavelength = f.s * 0.085, count = 11, span = wavelength * count,
+    const wavelength = f.s * 0.11, count = 8, span = wavelength * count,
       sources = [[f.cx - f.s * 0.2, f.cy], [f.cx + f.s * 0.2, f.cy]];
     ctx.lineWidth = 1.5;
     for (const [x, y] of sources) {
@@ -199,30 +222,34 @@ const SCENES = [
     const base = ctx.globalAlpha;
     const unit = f.s * 0.3;
     if (!cache.lines || cache.unit !== unit || cache.cx !== f.cx || cache.cy !== f.cy) {
-      cache.unit = unit;
-      cache.cx = f.cx;
-      cache.cy = f.cy;
-      cache.lines = Array.from({ length: 16 }, (_, i) => {
-        const path = new Path2D();
-        dipoleLine(((i + 0.5) / 16) * TAU).forEach(([x, y], n) =>
-          path[n ? "lineTo" : "moveTo"](f.cx + x * unit, f.cy + y * unit));
-        return path;
-      });
+      Object.assign(cache, { unit, cx: f.cx, cy: f.cy, layer: null });
+      cache.lines = Array.from({ length: 16 }, (_, i) =>
+        dipoleLine(((i + 0.5) / 16) * TAU).map(([x, y]) => [f.cx + x * unit, f.cy + y * unit]));
     }
-    ctx.lineCap = "round";
-    ctx.strokeStyle = c;
-    for (const line of cache.lines) {
-      ctx.globalAlpha = base * (0.2);
-      ctx.lineWidth = 1;
-      ctx.stroke(line);
-      ctx.globalAlpha = base;
-      // Short dashes drift from + to −: the direction a positive test charge is pushed.
-      ctx.setLineDash([7, 34]);
-      ctx.lineDashOffset = -t * 26;
-      ctx.lineWidth = 2;
-      ctx.stroke(line);
-      ctx.setLineDash([]);
+    // The field lines never change, so they are painted once.
+    ctx.drawImage(layer(cache, f, (g) => {
+      g.strokeStyle = c;
+      g.globalAlpha = 0.24;
+      g.lineWidth = 1;
+      for (const points of cache.lines) {
+        g.beginPath();
+        points.forEach(([x, y], n) => g[n ? "lineTo" : "moveTo"](x, y));
+        g.stroke();
+      }
+    }), 0, 0, f.w, f.h);
+    // Small markers drift from + to −: the direction a positive test charge is pushed.
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    for (const points of cache.lines) {
+      const spacing = 46, travel = (t * 26) % spacing, stepPx = unit * 0.035;
+      for (let d = travel; d < points.length * stepPx; d += spacing) {
+        const [x, y] = points[Math.min(points.length - 1, Math.floor(d / stepPx))];
+        ctx.moveTo(x + 1.8, y);
+        ctx.arc(x, y, 1.8, 0, TAU);
+      }
     }
+    ctx.fill();
+    ctx.globalAlpha = base;
     for (const [sign, color] of [[-1, "#ff9aa8"], [1, "#8fb6ff"]]) {
       const x = f.cx + sign * unit, r = f.s * 0.04;
       glow(ctx, x, f.cy, f.s * 0.13, color, 0.9);
@@ -296,14 +323,14 @@ const SCENES = [
 
   function space(ctx, f, t, c, cache) {
     const base = ctx.globalAlpha;
-    if (!cache.stars || cache.w !== f.w || cache.h !== f.h) {
-      cache.w = f.w;
-      cache.h = f.h;
-      cache.stars = Array.from({ length: 120 }, (_, i) => [
-        seeded(i, 7) * f.w, seeded(i, 8) * f.h, 0.4 + seeded(i, 9) * 1.1, 0.15 + seeded(i, 10) * 0.5,
-      ]);
-    }
-    for (const [x, y, r, a] of cache.stars) dot(ctx, x, y, r, chalk(a));
+    ctx.drawImage(layer(cache, f, (g) => {
+      for (let i = 0; i < 120; i++) {
+        g.fillStyle = chalk(0.15 + seeded(i, 10) * 0.5);
+        g.beginPath();
+        g.arc(seeded(i, 7) * f.w, seeded(i, 8) * f.h, 0.4 + seeded(i, 9) * 1.1, 0, TAU);
+        g.fill();
+      }
+    }), 0, 0, f.w, f.h);
     const sx = f.cx - f.s * 0.08, sy = f.cy, tilt = -0.3, squash = 0.36,
       planets = [[0.24, "#ffb48a", 3.2, 0.4], [0.42, "#7fe3ee", 4.6, 2.1], [0.64, c, 4, 4.4], [0.9, "#ffd9a8", 6, 1.2]];
     glow(ctx, sx, sy, f.s * 0.3, "#ffcd84", 0.85);
@@ -342,12 +369,18 @@ export function createBackdrop(canvas, topics) {
     raf = 0, running = false, last = 0, clock = 0, onChange = null,
     cycling = false, nextTurn = 0, shown = false;
 
-  function resize() {
-    const ratio = Math.min(devicePixelRatio || 1, 1.5), w = innerWidth, h = innerHeight;
+  let budget = null, minGap = 30;
+  function resize(keepBudget = false) {
+    const w = innerWidth, h = innerHeight;
+    // Cap the surface at about 1.5 million pixels: a full-screen canvas at a
+    // 2× pixel ratio is the main cost on integrated graphics.
+    if (!keepBudget || !budget)
+      budget = createBudget({ start: ratioForPixels(w, h, devicePixelRatio, 1.5e6, 1.5), floor: 0.75, slowMs: 46, window: 45 });
+    const ratio = budget.ratio;
     canvas.width = Math.round(w * ratio);
     canvas.height = Math.round(h * ratio);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    frame = sceneFrame(w, h);
+    frame = { ...sceneFrame(w, h), ratio };
     if (shown) paint();
   }
   function paint() {
@@ -365,7 +398,8 @@ export function createBackdrop(canvas, topics) {
     raf = requestAnimationFrame(tick);
     if (document.hidden) return void (last = 0);
     // About 30 frames a second is plenty for slow scenes and halves the work.
-    if (last && now - last < 30) return;
+    if (last && now - last < minGap) return;
+    if (minGap === 30 && budget.frame(now)) resize(true);
     clock += last ? Math.min(0.1, (now - last) / 1000) : 0;
     last = now;
     if (cycling && clock >= nextTurn) show((current + 1) % SCENES.length);
@@ -381,7 +415,7 @@ export function createBackdrop(canvas, topics) {
     onChange?.(current);
     if (!running) paint();
   }
-  addEventListener("resize", resize);
+  addEventListener("resize", () => resize());
   resize();
   return {
     show,
@@ -392,6 +426,11 @@ export function createBackdrop(canvas, topics) {
       nextTurn = clock + 9;
     },
     onChange(listener) { onChange = listener; },
+    /** Behind a page of text the scene is ambient: 20 frames a second is enough. */
+    calm(on) {
+      minGap = on ? 48 : 30;
+      budget?.reset();
+    },
     start() {
       shown = true;
       if (still()) {

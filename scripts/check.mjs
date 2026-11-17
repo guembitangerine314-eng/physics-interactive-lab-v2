@@ -84,6 +84,8 @@ for (const file of [
   "field.css",
   "js/topic-map.js",
   "js/field-backdrop.js",
+  "js/render-budget.js",
+  "js/direct-handles.js",
   "assets/fonts/Fraunces-variable.woff2",
   "assets/fonts/Fraunces-italic-variable.woff2",
   "assets/fonts/Fraunces-OFL.txt",
