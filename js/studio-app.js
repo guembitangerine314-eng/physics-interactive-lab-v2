@@ -29,6 +29,7 @@ import {
 } from "./learning-paths.js";
 import { renderSyllabus } from "./syllabus.js";
 import { experimentLink } from "./integration.js";
+document.fonts?.load?.('700 20px "Chakra Petch"');
 import { TOPICS, LEVELS, levelByKey, levelTopics, topicBySlug, topicExperiments, topicExtensions, enrichmentExperiments, topicNeighbours, adjacentTopics, labTopic, topicOf, searchExperiments } from "./topic-map.js";
 import { createBackdrop } from "./field-backdrop.js";
 import { hasHandles, opensInDiagram, handlesFor, handleAt, snapToControl, drawHandles } from "./direct-handles.js";
@@ -263,7 +264,7 @@ function pathsPage(query) {
     level = levelByKey(track);
   const row = (t) => {
     const count = topicExperiments(t).length,
-      inner = `<span class="path-topic">Topic ${t.number}</span><span class="path-name">${esc(t.name)}</span><span class="path-count">${count ? plural(count, "experiment") : "None yet"}</span>`;
+      inner = `<span class="path-topic"><small>Topic</small> <b>${t.number}</b></span><span class="path-name">${esc(t.name)}</span><span class="path-count">${count ? plural(count, "experiment") : "None yet"}</span>`;
     return count
       ? `<li><a href="#/${t.slug}" data-scene="${t.sceneIndex}" style="--accent:${t.accent}">${inner}</a></li>`
       : `<li><span class="path-empty">${inner}</span></li>`;
@@ -2028,6 +2029,8 @@ function route() {
   const field = !type && !embedded && (!id || id === "syllabus" || Boolean(topicBySlug(id)));
   document.body.classList.toggle("field-page", field);
   document.body.classList.toggle("lab-dark", Boolean(type));
+  // Each topic is a world with its own colour, on the page and in the 3D stage.
+  document.body.style.setProperty("--world", (type ? labTopic(type, resolveMode(type, params.get("level") || stored("physics-study-mode", null)))?.accent : topicBySlug(id)?.accent) ?? "#ff8a3c");
   if (field) backdrop.start();
   else backdrop.stop();
   window.scrollTo(0, 0);

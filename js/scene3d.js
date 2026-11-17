@@ -1,6 +1,7 @@
 import { createBudget } from "./render-budget.js";
 import { realMaterial, setSceneTheme } from "./scene-materials.js";
-import { studioBackdropTexture, benchMaterial, lightPool, addGlow, paintLabelPlate } from "./scene-look.js";
+import { studioBackdropTexture, benchMaterial, lightPool, stageRings, dustField, addGlow, paintLabelPlate } from "./scene-look.js";
+import { labTopic, DEFAULT_ACCENT } from "./topic-map.js";
 import { levelText } from "./level-wording.js";
 import { apparatusBounds, frameApparatus, frameOrbit, diagramLabelVisible } from './scene-framing.js';
 import { sceneLabelAllowed } from './study-policy.js';
@@ -212,6 +213,14 @@ export class SceneView {
     this.floor = floor;
     this.pool = lightPool();
     this.scene.add(this.pool);
+    this.rings = stageRings();
+    this.scene.add(this.rings);
+    this.dust = dustField();
+    this.scene.add(this.dust);
+    // A cool counter-light opposite the world-coloured rim light.
+    this.counterLight = new T.PointLight(0x7cf4ff, 16, 24);
+    this.counterLight.position.set(-6, 3.5, -3.5);
+    this.scene.add(this.counterLight);
     const grid = studioGrid();
     grid.position.y = -0.8;
     grid.material.transparent = true;
@@ -449,7 +458,8 @@ export class SceneView {
     }
   }
   buildModel(type, p, studyMode) {
-    setSceneTheme(type);
+    const accent = new T.Color(labTopic(type, studyMode)?.accent ?? DEFAULT_ACCENT);
+    setSceneTheme(type, accent.getHex());
     const newModel = this.type !== type;
     this.clear();
     this.framingBounds = null;
@@ -459,15 +469,18 @@ export class SceneView {
     this.type = type;
     this.key = JSON.stringify(p);
     const space = ["gravity", "earthmoon", "solarsystem", "stars", "binary", "threebody", "universe"].includes(type);
-    this.scene.background = space ? (this.orbitBackdrop ??= makeOrbitBackdrop()) : this.studioBackdrop;
-    this.scene.fog.color.set(space?0x080f1b:0x07080b);
+    // Space scenes share the same night sky, in the violet of the space world.
+    this.scene.background = studioBackdropTexture(space ? 0x6a5cff : accent.getHex());
+    this.scene.fog.color.set(space?0x080f1b:0x070617);
     // Orbital lighting is illustrative, not a simulated day/night cycle.
     this.ambient.intensity = { gravity: 0.36, earthmoon: 0.38, solarsystem: 0.65 }[type] ?? 0.62;
     this.keyLight.intensity = type === "solarsystem" ? 0 : 3.5;
     this.keyLight.position.set(-4, 9, type === "gravity" ? 3 : 6);
     if (type === "gravity") this.keyLight.position.set(-9, 7, 2);
     if (type === "earthmoon") this.keyLight.position.set(-10, 0, 0);
-    this.rimLight.intensity = space ? 0 : 34;
+    this.rimLight.intensity = space ? 0 : 46;
+    this.rimLight.color.copy(accent);
+    this.counterLight.intensity = space ? 0 : 16;
     this.fillLight.intensity = type === 'gravity' ? 0.45 : space ? 0.05 : 0.8;
     this.scene.environmentIntensity = type === 'gravity' ? 0.3 : space ? 0.08 : 1.1;
     this.stars.visible = space;
@@ -481,9 +494,15 @@ export class SceneView {
     this.floor.visible = !space && type !== "vectors";
     this.grid.visible = !space && type !== "vectors";
     this.grid.position.y = type === "gravity" ? 1 : this.grid.position.y;
-    this.grid.material.opacity = 0.16;
+    this.grid.material.opacity = 0.34;
+    this.grid.material.uniforms.tint.value.copy(accent).lerp(new T.Color(0x8fa0ff), 0.45);
     this.pool.visible = this.floor.visible;
     this.pool.position.y = this.floor.position.y + 0.012;
+    this.pool.material.color.copy(accent).lerp(new T.Color(0xffffff), 0.35);
+    this.rings.visible = this.dust.visible = this.floor.visible;
+    this.rings.position.y = this.floor.position.y + 0.016;
+    this.rings.material.color.copy(accent);
+    this.dust.material.color.copy(accent).lerp(new T.Color(0xffffff), 0.6);
     const add = (name, mesh, pos) => {
       o[name] = mesh;
       if (pos) mesh.position.set(...pos);
@@ -979,6 +998,13 @@ export class SceneView {
     );
     this.camera.lookAt(this.target);
     this.grid.material.uniforms.opacity.value = this.grid.material.opacity;
+    if (this.rings?.visible) {
+      // Stage dressing only: the pad turns and the dust drifts.
+      const beat = performance.now() / 1000;
+      this.rings.rotation.z = beat * 0.03;
+      this.dust.rotation.y = beat * 0.012;
+      this.dust.position.y = Math.sin(beat * 0.22) * 0.25;
+    }
     this.renderer.render(this.scene, this.camera);
     if (this.budget?.frame(performance.now())) {
       this.renderer.setPixelRatio(this.budget.ratio);

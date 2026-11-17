@@ -7,7 +7,9 @@ import { availableModes, getProfile } from "./learning-paths.js";
 import { IGCSE_AREAS, igcseArea, studyTitle } from "./study-policy.js";
 import { TOPICS as ALEVEL_NAMES } from "./syllabus.js";
 
-const ACCENTS = ["#6fb4ff", "#ff9d6e", "#45d8d2", "#ffc55c", "#c3a4ff", "#8fb0ff"];
+/** One "world" colour per backdrop scene: motion, thermal, waves, electricity, nuclear, space. */
+const ACCENTS = ["#ff8a3c", "#ff4d7e", "#2ee6ff", "#ffe04a", "#86ff6b", "#a98bff"];
+export const DEFAULT_ACCENT = ACCENTS[0];
 const SCENES = [
   "A pendulum keeps time",
   "Particles in a box",

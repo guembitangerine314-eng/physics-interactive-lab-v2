@@ -55,11 +55,11 @@ export function studioGrid() {
   const mesh = new T.Mesh(new T.PlaneGeometry(100, 100), new T.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    uniforms: { opacity: { value: 0.22 } },
+    uniforms: { opacity: { value: 0.22 }, tint: { value: new T.Color(0x47708a) } },
     vertexShader: `varying vec2 p;void main(){p=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader: `varying vec2 p;uniform float opacity;
+    fragmentShader: `varying vec2 p;uniform float opacity;uniform vec3 tint;
       float grid(vec2 p,float s){vec2 q=p/s;vec2 a=abs(fract(q-.5)-.5)/max(fwidth(q),vec2(.001));return 1.-min(min(a.x,a.y),1.);}
-      void main(){float fade=exp(-dot(p,p)*.012);float lines=grid(p,.75)*.24+grid(p,3.)*.5;gl_FragColor=vec4(vec3(.28,.43,.54),lines*fade*opacity);}`,
+      void main(){float fade=exp(-dot(p,p)*.012);float lines=grid(p,.75)*.24+grid(p,3.)*.5;gl_FragColor=vec4(tint,lines*fade*opacity);}`,
   }));
   mesh.rotation.x = -Math.PI / 2;
   return mesh;

@@ -105,16 +105,19 @@ export function benchFade() {
  * [base board, frame and rods, feet and clamps]. Teaching colours (the gold
  * mass, the cyan ray) are never touched, because labels refer to them. */
 const KITS = [
-  { base: [0xd8c08f, "wood"], frame: [0xbfc4c9, "steel"], foot: [0x25282b, "rubber"] },   // birch board, steel rods, cast iron
-  { base: [0xe8e2d2, "ceramic"], frame: [0x2f3338, "rubber"], foot: [0x9c2f2a, "satin"] }, // cream enamel, black frame, red clamps
-  { base: [0x7f9a86, "satin"], frame: [0xc9a35a, "brass"], foot: [0x3b2a20, "wood"] },     // sage board, brass, dark wood
-  { base: [0xc6ccd1, "satin"], frame: [0xd5d9dd, "steel"], foot: [0x1f3a5f, "satin"] },    // grey laminate, aluminium, navy enamel
-  { base: [0xb9825a, "wood"], frame: [0x8f969d, "steel"], foot: [0x1d1f21, "rubber"] },    // cherry board, gunmetal, black
-  { base: [0xdfd6c6, "ceramic"], frame: [0xb88a4a, "brass"], foot: [0x4a5a3a, "satin"] },  // ivory, brass, olive
+  { base: [0x23263a, "deck"], frame: [0xcfd3d8, "steel"], foot: [0x101014, "rubber"] },   // midnight deck, bright steel
+  { base: [0x2a2c31, "deck"], frame: [0xc79a3e, "brass"], foot: [0x8f1f2b, "satin"] },    // gunmetal, brass, oxblood clamps
+  { base: [0x1c2430, "deck"], frame: [0x9aa3ad, "steel"], foot: [0xc4682c, "satin"] },    // blue steel, titanium, copper paint
+  { base: [0x2e2a36, "deck"], frame: [0xd5d9dd, "steel"], foot: [0x1f3a5f, "satin"] },    // aubergine, aluminium, navy
+  { base: [0x1f2a2a, "deck"], frame: [0xb88a4a, "brass"], foot: [0x15181a, "rubber"] },   // dark teal, bronze, black
+  { base: [0x30303a, "deck"], frame: [0x4a4f57, "steel"], foot: [0xb8323a, "satin"] },    // graphite, black nickel, red
 ];
-let kit = KITS[0];
+let kit = KITS[0], accent = 0xff8a3c;
+/** The colour of the world this experiment belongs to (glowing trims, rim light). */
+export const sceneAccent = () => accent;
 /** Choose the kit for the experiment about to be built. */
-export function setSceneTheme(type) {
+export function setSceneTheme(type, world) {
+  if (world !== undefined) accent = world;
   let hash = 0;
   for (const ch of String(type)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   kit = KITS[hash % KITS.length];
@@ -151,6 +154,7 @@ const RECIPES = {
   glass: () => ({ roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.5, reflectivity: 0.6 }),
   rubber: () => ({ roughness: 0.78, metalness: 0.12, envMapIntensity: 0.55, roughnessMap: satinMap() }),
   ceramic: () => ({ roughness: 0.3, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.25, envMapIntensity: 0.8 }),
+  deck: () => ({ roughness: 0.36, metalness: 0.78, envMapIntensity: 1.25, roughnessMap: brushedMap() }),
   steel: () => ({ roughness: 0.5, metalness: 0.86, envMapIntensity: 1.25, roughnessMap: brushedMap() }),
   brass: () => ({ roughness: 0.42, metalness: 0.92, envMapIntensity: 1.3, roughnessMap: brushedMap() }),
   wood: () => ({ roughness: 0.62, metalness: 0, envMapIntensity: 0.45, map: grainMap() }),

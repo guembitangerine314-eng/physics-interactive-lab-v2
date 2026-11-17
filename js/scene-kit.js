@@ -1,6 +1,6 @@
 /** Reusable 3D apparatus. Display transforms never modify physical state. */
 import { paintLabelPlate, LABEL_FONT } from "./scene-look.js";
-import { realMaterial } from "./scene-materials.js";
+import { realMaterial, sceneAccent } from "./scene-materials.js";
 import * as T from "../vendor/three.module.min.js";
 import { roundedBox } from "./scene-finish.js";
 export const PALETTE = {
@@ -42,7 +42,20 @@ export function setPath(line, points) {
   line.geometry.setDrawRange(0, points.length);
   line.frustumCulled = false;
 }
+const probe = new T.Color(), tone = { h: 0, s: 0, l: 0 };
+/** The stage is dark, so ink meant for white paper is lifted until it reads
+ * on a dark screen. Hue is kept, so colour-coded labels still match. */
+export function brightInk(color, floor = 0.72) {
+  probe.set(color).getHSL(tone, T.SRGBColorSpace);
+  if (tone.l >= floor) return color;
+  probe.setHSL(tone.h, Math.min(1, tone.s * 1.15 + 0.12), floor, T.SRGBColorSpace);
+  return typeof color === "string" ? "#" + probe.getHexString() : probe.getHex();
+}
+const isPale = (color) => (probe.set(color).getHSL(tone, T.SRGBColorSpace), tone.l > 0.8 && tone.s < 0.6);
 function textTexture(text, color, theme = 'dark') {
+  // Paper boards are dark screens now: same words, light ink, dark plate.
+  if (theme === "paper") theme = "dark";
+  if (theme !== "plain") color = brightInk(color);
   const canvas = document.createElement("canvas"),
     c = canvas.getContext("2d");
   c.font = LABEL_FONT;
@@ -94,15 +107,25 @@ export function createSceneKit(root, { labels = true } = {}) {
     o.receiveShadow = true;
     return add(o, pos);
   };
-  const box = (w, h, d, color, pos, extra) =>
-    mesh(Math.min(w, h, d) >= 0.075 ? roundedBox(w, h, d) : new T.BoxGeometry(w, h, d), color, pos, extra,
+  const box = (w, h, d, color, pos, extra) => {
+    // A large pale sheet was a whiteboard; on this stage it is a dark screen.
+    const [thin, , wide] = [w, h, d].sort((a, b) => a - b), screen = !extra?.transparent && !extra?.map && thin <= 0.2 && wide * (w + h + d - thin - wide) >= 5 && isPale(color);
+    if (screen) {
+      color = 0x0d0c26;
+      extra = { roughness: 0.28, metalness: 0.4, emissive: sceneAccent(), emissiveIntensity: 0.045, ...extra, envMapIntensity: 0.9 };
+    }
+    const o = mesh(Math.min(w, h, d) >= 0.075 ? roundedBox(w, h, d) : new T.BoxGeometry(w, h, d), color, pos, extra,
       // Wide and flat: the board the apparatus stands on.
-      w * d >= 3 && h <= 0.3 ? "board" : null);
+      !screen && w * d >= 3 && h <= 0.3 ? "board" : null);
+    if (screen) o.userData.screen = true;
+    return o;
+  };
   const ball = (r, color, pos, extra) =>
     mesh(new T.SphereGeometry(r, 40, 28), color, pos, extra);
   const cylinder = (r, h, color, pos, extra) =>
     mesh(new T.CylinderGeometry(r, r, h, 36), color, pos, extra);
   const line = (points, color = PALETTE.cyan, opacity = 1) => {
+    color = brightInk(color, 0.66);
     const o = new T.Line(
       new T.BufferGeometry(),
       new T.LineBasicMaterial({
@@ -273,6 +296,10 @@ export function createSceneKit(root, { labels = true } = {}) {
   const stand = (w = 8, d = 3) => {
     const base = box(w, 0.2, d, 0x35566b, [0, -0.1, 0], { roughness: 0.46, metalness: 0.32 });
     base.userData.role = "base";
+    // A light seam around the platform in the colour of this topic's world.
+    const seam = mesh(new T.BoxGeometry(w + 0.05, 0.035, d + 0.05), sceneAccent(), [0, -0.1, 0], { emissive: sceneAccent(), emissiveIntensity: 1.4, roughness: 0.4, metalness: 0 });
+    seam.castShadow = false;
+    seam.userData.role = "bench-trim";
     box(w - 0.14, 0.018, d - 0.14, 0x688695, [0, 0.009, 0], { roughness: 0.64, metalness: 0.15 });
     const rim = line([[-w/2+.1,.025,d/2-.07],[w/2-.1,.025,d/2-.07]],0x88c7cd,.75);
     rim.userData.role='bench-trim';
